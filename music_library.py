@@ -1,4 +1,4 @@
-# music_library.py
+# Load songs from CSV or JSON
 class Song:
     def __init__(self, title, artist, bpm):
         self.title = title
@@ -10,5 +10,4 @@ class MusicLibrary:
         self.songs = []
 
     def load_songs(self, file_path):
-        # Load songs from CSV or JSON
         pass
