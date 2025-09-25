@@ -6,3 +6,4 @@ class HeartRateMonitor:
     def get_heart_rate(self):
         # For now, return a dummy value
         return 80
+        return 143
