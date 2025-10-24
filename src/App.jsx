@@ -1,3 +1,5 @@
+
+import SpotifyTrackProvider from "./providers/SpotifyTrackProvider.js";
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Heart,
