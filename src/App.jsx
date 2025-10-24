@@ -19,7 +19,7 @@ import {
 // ----------------------------------------------------------------------
 // (Optional) Spotify constants if you later add real OAuth/PKCE
 // ----------------------------------------------------------------------
-const SPOTIFY_CLIENT_ID = 'c4eb99c2c9674add898d83530e45d7be';
+const SPOTIFY_CLIENT_ID = '70177f436adc418f98f6626d92667dde';
 const SPOTIFY_REDIRECT_URI = 'http://localhost:3000/callback';
 const SPOTIFY_SCOPES = [
   'user-read-private',
@@ -29,6 +29,8 @@ const SPOTIFY_SCOPES = [
   'playlist-read-private',
   'playlist-modify-public',
 ].join(' ');
+
+const SPOTIFY_ACCESS_TOKEN = "BQB49UbBtHcB9Y6oCSRDs_fYF40JJE8FvwzbjeR9XvjyIoF0nqQcUyEv4kV0sTlNolZ27I2HP83ivH9RLJXv6MH5pmUsraqBOiFhvYW5tYKjJces0jK1CQ_M4l7xrWuyk5024x8CVUs";
 
 // Basic Email Regex for client-side validation
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
