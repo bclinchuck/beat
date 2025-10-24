@@ -1,3 +1,5 @@
+
+import SpotifyTrackProvider from "./providers/SpotifyTrackProvider.js";
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Heart,
@@ -50,6 +52,8 @@ export default function App() {
   const [queue, setQueue] = useState([]);
   const [selectedWorkout, setSelectedWorkout] = useState('cardio');
   const [showSetup, setShowSetup] = useState(false);
+  const [provider, setProvider] = useState(null);
+
 
   // State for music progress
   const [currentPlaybackTime, setCurrentPlaybackTime] = useState(0); // in milliseconds
