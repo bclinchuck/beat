@@ -1,5 +1,3 @@
-
-import SpotifyTrackProvider from "./providers/SpotifyTrackProvider.js";
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Heart,
@@ -16,6 +14,9 @@ import {
   LogOut,
   Camera,
 } from 'lucide-react';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, signOut } from "firebase/auth";
+import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc } from "firebase/firestore";
+import { auth, db } from "./firebase";
 
 // ----------------------------------------------------------------------
 // SPOTIFY OAUTH CONSTANTS (Replace these with your actual values)
@@ -52,8 +53,6 @@ export default function App() {
   const [queue, setQueue] = useState([]);
   const [selectedWorkout, setSelectedWorkout] = useState('cardio');
   const [showSetup, setShowSetup] = useState(false);
-  const [provider, setProvider] = useState(null);
-
 
   // State for music progress
   const [currentPlaybackTime, setCurrentPlaybackTime] = useState(0); // in milliseconds
@@ -84,8 +83,9 @@ export default function App() {
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotError, setForgotError] = useState('');
-
   const [signupError, setSignupError] = useState('');
+  const [loginError, setLoginError] = useState('');
+
 
   const workoutTypes = [
     {
@@ -549,29 +549,82 @@ export default function App() {
   };
 
   // Authentication Handlers
-  const handleLogin = (e) => {
-    if (e) e.preventDefault();
 
-    if (loginIdentifier.trim() && loginPassword.trim()) {
-      const isEmail = EMAIL_REGEX.test(loginIdentifier);
-      const name = isEmail ? loginIdentifier.split('@')[0] : loginIdentifier;
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError(""); // Clear previous errors
 
-      setUserProfile({
-        name: name,
-        username: name,
-        email: isEmail ? loginIdentifier : `${loginIdentifier}@mockuser.com`,
-      });
+    // ✅ Check empty fields
+    if (!loginIdentifier.trim() || !loginPassword.trim()) {
+      setLoginError("Please enter a username/email and password");
+      return;
+    }
+
+    try {
+      let email = loginIdentifier;
+
+      // ✅ If input is a username
+      if (!loginIdentifier.includes("@")) {
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("username", "==", loginIdentifier));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          setLoginError("Username not found"); // <-- red popup shows
+          return;
+        }
+
+        email = querySnapshot.docs[0].data().email;
+      }
+
+      // ✅ Sign in
+      const userCred = await signInWithEmailAndPassword(auth, email, loginPassword);
+
+      // ✅ Check email verification
+      if (!userCred.user.emailVerified) {
+        await sendEmailVerification(userCred.user);
+        setLoginError("Please verify your email before logging in. Verification email resent!"); // <-- red popup shows
+        return;
+      }
+
+      // ✅ Get user info from Firestore
+      const userDoc = await getDoc(doc(db, "users", userCred.user.uid));
+      if (userDoc.exists()) {
+        setUserProfile(userDoc.data());
+      } else {
+        setUserProfile({ email: userCred.user.email });
+      }
+
       setIsAuthenticated(true);
-      // STARTER MUSIC: Automatically connects and starts playing the initial queued song
       setIsConnected(true);
       setIsPlaying(true);
-    } else {
-      alert('Please enter a username or email and password');
-    }
+
+    } catch (error) {
+  if (error.code === "auth/too-many-requests") {
+    setLoginError("Too many failed attempts. Please wait a few minutes before trying again.");
+  } else if (error.code === "auth/user-not-found") {
+    setLoginError("Username or email not found.");
+  } else if (error.code === "auth/wrong-password") {
+    setLoginError("Incorrect password. Please try again.");
+  } else if (error.code === "auth/invalid-credential") {
+    setLoginError("Incorrect password. Please try again.");
+  }
+  else {
+    setLoginError(error.message);
+  }
+}
+
   };
 
-  const handleSignUp = () => {
-    setSignupError('');
+
+
+
+
+
+
+
+  const handleSignUp = async () => {
+    setSignupError(""); // clear previous errors
 
     if (
       !signupName.trim() ||
@@ -580,31 +633,59 @@ export default function App() {
       !signupPassword.trim() ||
       !signupConfirmPassword.trim()
     ) {
-      setSignupError('Please fill in all fields.');
+      setSignupError("Please fill in all fields.");
       return;
     }
+
     if (!EMAIL_REGEX.test(signupEmail)) {
-      setSignupError('Please enter a valid email address.');
+      setSignupError("Please enter a valid email address.");
       return;
     }
+
     if (signupPassword !== signupConfirmPassword) {
-      setSignupError('Passwords do not match!');
+      setSignupError("Passwords do not match!");
       return;
     }
 
-    // MOCK SUCCESS
-    setUserProfile({
-      name: signupName,
-      username: signupUsername,
-      email: signupEmail,
-    });
+    try {
+      // ✅ Create account in Firebase Auth
+      const userCred = await createUserWithEmailAndPassword(
+        auth,
+        signupEmail,
+        signupPassword
+      );
 
-    setIsAuthenticated(true);
-    // STARTER MUSIC: Automatically connects and starts playing the initial queued song
-    setIsConnected(true);
-    setShowSetup(false);
-    setIsPlaying(true);
+      // ✅ Send verification email
+      await sendEmailVerification(userCred.user);
+
+      // ❌ Don't log in yet
+      await signOut(auth); // make sure user is signed out until verified
+
+      // ✅ Save username + name in Firestore
+      await setDoc(doc(db, "users", userCred.user.uid), {
+        name: signupName,
+        username: signupUsername,
+        email: signupEmail,
+        profilePicture: signupProfilePicURL || "https://default-pfp-link.com/default.jpg",
+      });
+
+      // ✅ Show in-app message instead of alert
+      setSignupError("Verification email sent! Please check your inbox before logging in.");
+
+      // Optionally, clear signup fields
+      setSignupName("");
+      setSignupUsername("");
+      setSignupEmail("");
+      setSignupPassword("");
+      setSignupConfirmPassword("");
+
+    } catch (error) {
+      setSignupError(error.message); // still shows errors in red box
+    }
   };
+
+
+
 
   // Handlers for Forgot/Reset Flows (omitted for brevity, unchanged)
   const handleForgotUsername = () => {
@@ -935,6 +1016,11 @@ export default function App() {
                   <h2 className="text-2xl font-bold text-white mb-6">
                     Sign In
                   </h2>
+                  {loginError && (
+                    <div className="bg-red-900/50 border border-red-500 text-red-300 p-3 rounded-lg mb-4 text-sm">
+                      {loginError}
+                    </div>
+                  )}
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">
