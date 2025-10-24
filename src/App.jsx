@@ -85,6 +85,8 @@ export default function App() {
   const [forgotError, setForgotError] = useState('');
   const [signupError, setSignupError] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [profileUpdateSuccess, setProfileUpdateSuccess] = useState(false);
+
 
 
   const workoutTypes = [
@@ -591,8 +593,10 @@ export default function App() {
       const userDoc = await getDoc(doc(db, "users", userCred.user.uid));
       if (userDoc.exists()) {
         setUserProfile(userDoc.data());
+        setProfilePictureUrl(userDoc.data().profilePicture || 'https://via.placeholder.com/150/9333ea/FFFFFF?text=P');
       } else {
         setUserProfile({ email: userCred.user.email });
+        setProfilePictureUrl(userDoc.data().profilePicture || 'https://via.placeholder.com/150/9333ea/FFFFFF?text=P');
       }
 
       setIsAuthenticated(true);
@@ -666,7 +670,6 @@ export default function App() {
         name: signupName,
         username: signupUsername,
         email: signupEmail,
-        profilePicture: signupProfilePicURL || "https://default-pfp-link.com/default.jpg",
       });
 
       // ✅ Show in-app message instead of alert
@@ -736,6 +739,40 @@ export default function App() {
     setCurrentPlaybackTime(0);
   };
 
+  const handleProfilePictureChange = async (newUrl) => {
+    try {
+      if (!auth.currentUser) {
+        console.error("No user logged in!");
+        return;
+      }
+
+      // Update local state
+      setProfilePictureUrl(newUrl);
+      setUserProfile(prev => ({
+        ...prev,
+        profilePicture: newUrl,
+      }));
+
+      // Update Firestore
+      const userRef = doc(db, "users", auth.currentUser.uid);
+      await updateDoc(userRef, { profilePicture: newUrl });
+
+      // ✅ Show green popup
+      setProfileUpdateSuccess(true); // <-- new state you'll define
+
+      // Automatically go back to homepage after 2 seconds
+      setTimeout(() => {
+        setShowProfileSettings(false);
+        // Optionally navigate elsewhere if you have a router
+        // navigate("/"); 
+      }, 2000);
+    } catch (error) {
+      console.error("Error updating profile picture:", error.message);
+      alert("Error saving profile picture: " + error.message);
+    }
+  };
+
+
   const initiateSpotifyAuth = () => {
     const authUrl = `http://googleusercontent.com/spotify.com/4`;
     window.location.href = authUrl;
@@ -748,16 +785,30 @@ export default function App() {
     }, 5000);
   };
 
-  // Profile Picture Handler (omitted for brevity, unchanged)
-  const handleProfilePictureChange = (newUrl) => {
-    if (newUrl.trim()) {
-      setProfilePictureUrl(newUrl);
-      setShowProfileSettings(false);
-      alert('Profile picture updated!');
-    } else {
-      alert('Please enter a valid image URL.');
+  // 🖼️ Update profile picture URL in Firestore
+  const handleProfilePictureSave = async () => {
+    try {
+      if (!auth.currentUser) {
+        console.error("No user logged in!");
+        return;
+      }
+
+      const userRef = doc(db, "users", auth.currentUser.uid);
+      await updateDoc(userRef, {
+        profilePicture: profilePictureUrl,
+      });
+
+      setUserProfile(prev => ({
+        ...prev,
+        profilePicture: profilePictureUrl,
+      }));
+
+      console.log("Profile picture updated successfully!");
+    } catch (error) {
+      console.error("Error updating profile picture:", error.message);
     }
   };
+
 
   const togglePlayback = () => {
     const newPlayingState = !isPlaying;
@@ -778,68 +829,56 @@ export default function App() {
 
   // Profile Settings Modal Component (omitted for brevity, unchanged)
   const ProfileSettingsModal = () => {
-    const [tempUrl, setTempUrl] = useState(profilePictureUrl);
+    const [tempUrl, setTempUrl] = useState(profilePictureUrl || '');
+
+    useEffect(() => {
+      if (showProfileSettings) {
+        setTempUrl(profilePictureUrl || '');
+      }
+    }, [showProfileSettings]);
+
+    const handleSave = () => {
+      handleProfilePictureChange(tempUrl);
+    };
 
     return (
       <div className="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4">
+        {profileUpdateSuccess && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in-out">
+            Profile picture updated successfully!
+          </div>
+        )}
         <div className="bg-gray-800 rounded-2xl shadow-2xl p-8 max-w-md w-full border border-gray-700">
-          <h2 className="text-2xl font-bold text-white mb-6">
-            Profile Settings
-          </h2>
+          <h2 className="text-2xl font-bold text-white mb-6">Profile Settings</h2>
 
           <div className="flex flex-col items-center mb-6">
             <img
-              src={profilePictureUrl}
+              src={tempUrl || 'https://via.placeholder.com/150/9333ea/FFFFFF?text=P'}
               alt="Profile"
               className="w-24 h-24 rounded-full object-cover mb-4 border-4 border-purple-500 shadow-xl"
             />
-            <button
-              onClick={() => document.getElementById('image-upload').click()}
-              className="flex items-center text-sm font-semibold text-purple-400 hover:text-purple-300 transition-colors"
-            >
-              <Camera className="w-4 h-4 mr-1" /> Change Picture (Demo)
-            </button>
-            <input
-              type="file"
-              id="image-upload"
-              className="hidden"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files[0];
-                if (file) {
-                  alert(
-                    `File selected: ${file.name}. Simulating upload success...`
-                  );
-                }
-              }}
-            />
+            {/* File input logic omitted for brevity */}
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-white font-semibold mb-2">
-              Mock Image URL Input
-            </h3>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Image URL
-              </label>
-              <input
-                type="text"
-                value={tempUrl}
-                onChange={(e) => setTempUrl(e.target.value)}
-                placeholder="Enter new image URL"
-                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-
+            <input
+              type="text"
+              value={tempUrl}
+              onChange={(e) => setTempUrl(e.target.value)}
+              placeholder="Enter new image URL"
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
             <button
-              onClick={() => handleProfilePictureChange(tempUrl)}
+              onClick={handleSave}
               className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-purple-600 hover:to-purple-700 transition-all"
             >
               Save Picture
             </button>
             <button
-              onClick={() => setShowProfileSettings(false)}
+              onClick={() => {
+                setShowProfileSettings(false);
+                setProfileUpdateSuccess(false);
+              }}
               className="w-full bg-gray-700 text-gray-300 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-all"
             >
               Close
