@@ -1901,8 +1901,7 @@ export default function App() {
                     Authorize Spotify
                   </h3>
                   <p className="text-gray-400">
-                    We use Spotify&apos;s browser-based PKCE flow, so it works
-                    on Firebase Hosting without a custom backend.
+              
                   </p>
                 </div>
 
@@ -1919,12 +1918,7 @@ export default function App() {
                 </button>
 
                 <p className="text-sm text-gray-400">
-                  Make sure{' '}
-                  <span className="text-white font-mono">
-                    {SPOTIFY_REDIRECT_URI}
-                  </span>{' '}
-                  is added as a Redirect URI in your Spotify Developer
-                  Dashboard.
+                 
                 </p>
               </div>
 
@@ -1935,8 +1929,7 @@ export default function App() {
                       Spotify Connected
                     </h3>
                     <p className="text-green-100 text-sm">
-                      Your Firebase-hosted app is linked to Spotify. Close this
-                      dialog to start syncing live tracks.
+                      You are successfully linked to Spotify. Return to the dashboard to start listening.
                     </p>
                   </div>
                   <div className="flex flex-col md:flex-row gap-3">
