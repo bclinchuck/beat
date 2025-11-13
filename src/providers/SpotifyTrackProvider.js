@@ -101,17 +101,24 @@ export default class SpotifyTrackProvider extends TrackProvider {
     const { min, target, max } = tempo;
 
     // 1) /v1/recommendations
+    const trackSeeds = Array.isArray(seedTracks) ? seedTracks.slice(0, 4) : [];
+
     const params = new URLSearchParams({
       limit: "20",
       market: "from_token",
-      seed_genres: genre,
-      seed_tracks: seedTracks.slice(0, 5).join(","),
       target_tempo: String(target),
       min_tempo: String(min),
       max_tempo: String(max),
       min_energy: "0.3",
       min_danceability: "0.3"
     });
+
+    if (genre) {
+      params.set("seed_genres", genre);
+    }
+    if (trackSeeds.length) {
+      params.set("seed_tracks", trackSeeds.join(","));
+    }
 
     let rec;
     try {
