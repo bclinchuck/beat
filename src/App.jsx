@@ -23,7 +23,7 @@ import SpotifyTrackProvider from "./providers/SpotifyTrackProvider.js";
 // SPOTIFY OAUTH CONSTANTS
 // ----------------------------------------------------------------------
 const AUTH_STORAGE_KEY = 'beat_spotify_auth';
-const LOOPBACK_REDIRECT = 'http://127.0.0.1:3000/';
+const LOOPBACK_REDIRECT = 'https://beat-e9fd0.web.app/';
 const DEFAULT_REDIRECT = (() => {
   if (process.env.REACT_APP_SPOTIFY_REDIRECT_URI) {
     return process.env.REACT_APP_SPOTIFY_REDIRECT_URI;
@@ -31,9 +31,8 @@ const DEFAULT_REDIRECT = (() => {
   if (typeof window === 'undefined') {
     return LOOPBACK_REDIRECT;
   }
-  const { protocol, port } = window.location;
-  const normalizedPort = port ? `:${port}` : ':3000';
-  return `${protocol}//127.0.0.1${normalizedPort}/`;
+  const origin = window.location.origin || `${window.location.protocol}//${window.location.host}`;
+  return origin.endsWith('/') ? origin : `${origin}/`;
 })();
 const SPOTIFY_CLIENT_ID =
   process.env.REACT_APP_SPOTIFY_CLIENT_ID || '70177f436adc418f98f6626d92667dde';
