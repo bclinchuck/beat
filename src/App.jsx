@@ -1033,26 +1033,26 @@ export default function App() {
         return;
       }
 
-      const userDocRef = doc(db, 'users', userCred.user.uid);
-      let userData = null;
-
+      let profileFromFirestore = null;
       try {
-        const userDocSnap = await getDoc(userDocRef);
-        userData =
-          userDocSnap?.exists() && typeof userDocSnap.data === 'function'
-            ? userDocSnap.data() ?? null
-            : null;
+        const userDocRef = doc(db, 'users', userCred.user.uid);
+        const snapshot = await getDoc(userDocRef);
+        profileFromFirestore = snapshot?.exists() ? snapshot?.data?.() ?? null : null;
       } catch (docError) {
-        console.error('Error fetching user profile:', docError);
+        console.warn('Falling back to default profile data:', docError);
       }
 
-      if (userData && typeof userData === 'object') {
-        setUserProfile(userData);
-        setProfilePictureUrl(userData?.profilePicture || DEFAULT_PROFILE_IMAGE);
-      } else {
-        setUserProfile({ email: userCred.user.email });
-        setProfilePictureUrl(DEFAULT_PROFILE_IMAGE);
-      }
+      const safeProfile =
+        profileFromFirestore && typeof profileFromFirestore === 'object'
+          ? profileFromFirestore
+          : { email: userCred.user.email };
+
+      setUserProfile(safeProfile);
+      const safeProfilePicture =
+        typeof safeProfile?.profilePicture === 'string' && safeProfile.profilePicture.length
+          ? safeProfile.profilePicture
+          : DEFAULT_PROFILE_IMAGE;
+      setProfilePictureUrl(safeProfilePicture);
 
       setIsAuthenticated(true);
       setIsConnected(true);
