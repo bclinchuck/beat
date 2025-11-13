@@ -7,6 +7,7 @@ import { TrackProvider } from "./TrackProvider.js";
 const WORKOUT_SEEDS = {
   cardio: {
     genre: "pop",
+    artists: ["6eUKZXaKkcviH0Ku9w2n3V", "246dkjvS1zLTtiykXe5h60"],
     tracks: [
       "6habFhsOp2NvshLv26DqMb", // Lean On
       "3AJwUDP919kvQ9QcozQPxg", // Titanium
@@ -18,6 +19,7 @@ const WORKOUT_SEEDS = {
   },
   strength: {
     genre: "rock",
+    artists: ["711MCceyCBcFnzjGY4Q7Un", "4STHEaNw4mPZ2tzheohgXB"],
     tracks: [
       "7ouMYWpwJ422jRcDASZB7P", // Thunderstruck
       "0g5U1Qm9WioNbZrJvPtoEg", // Lose Yourself
@@ -29,6 +31,7 @@ const WORKOUT_SEEDS = {
   },
   yoga: {
     genre: "ambient",
+    artists: ["7EQ0qTo7fWT7DPxmxtSYEc", "4LEiUm1SRbFMgfqnQTwUbQ"],
     tracks: [
       "4iV5W9uYEdYUVa79Axb7Rh", // Holocene
       "6JEK0CvvjDjjMUBFoXShNZ", // Skinny Love
@@ -40,6 +43,7 @@ const WORKOUT_SEEDS = {
   },
   hiit: {
     genre: "edm",
+    artists: ["1vCWHaC5f2uS3yhpwWbIA6", "6eUKZXaKkcviH0Ku9w2n3V"],
     tracks: [
       "3Zwu2K0Qa5sT6teCCHPShP", // Can't Hold Us
       "1xznGGDReH1oQq0xzbwXa3", // Closer
@@ -51,6 +55,7 @@ const WORKOUT_SEEDS = {
   },
   warmup: {
     genre: "dance",
+    artists: ["64KEffDW9EtZ1y2vBYgq8T", "6qqNVTkY8uBg9cP3Jd7DAH"],
     tracks: [
       "0tgVpDi06FyKpA1z0VMD4v", // Shape of You
       "2PpruBYCo4H7WOBJ7Q2EwM", // Get Lucky
@@ -62,6 +67,7 @@ const WORKOUT_SEEDS = {
   },
   cooldown: {
     genre: "chill",
+    artists: ["6LEeAFiJF8OuPx747e1wxR", "0SqWv0TeT41wOvrj1GWhS6"],
     tracks: [
       "4FRW5Nza1Ym91BGV4nFWXI", // Gravity
       "6w7d9Iv7FsfmK1LJUbLOGg", // Pink + White
@@ -73,6 +79,7 @@ const WORKOUT_SEEDS = {
   },
   default: {
     genre: "workout",
+    artists: ["1Xyo4u8uXC1ZmMpatF05PJ"],
     tracks: [
       "7GhIk7Il098yCjg4BQjzvb",
       "0VjIjW4GlUZAMYd2vXMi3b",
@@ -96,12 +103,18 @@ export default class SpotifyTrackProvider extends TrackProvider {
   }
 
   async getRecommendations(workout) {
-    const { genre, tracks: seedTracks, tempo } =
+    const {
+      genre,
+      tracks: seedTracks,
+      tempo,
+      artists: seedArtists
+    } =
       SpotifyTrackProvider.configForWorkout(workout);
     const { min, target, max } = tempo;
 
     // 1) /v1/recommendations
-    const trackSeeds = Array.isArray(seedTracks) ? seedTracks.slice(0, 4) : [];
+    const trackSeeds = Array.isArray(seedTracks) ? seedTracks.slice(0, 2) : [];
+    const artistSeeds = Array.isArray(seedArtists) ? seedArtists.slice(0, 2) : [];
 
     const params = new URLSearchParams({
       limit: "20",
@@ -118,6 +131,9 @@ export default class SpotifyTrackProvider extends TrackProvider {
     }
     if (trackSeeds.length) {
       params.set("seed_tracks", trackSeeds.join(","));
+    }
+    if (artistSeeds.length) {
+      params.set("seed_artists", artistSeeds.join(","));
     }
 
     let rec;
