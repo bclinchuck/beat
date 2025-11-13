@@ -14,7 +14,7 @@ import {
   LogOut,
   Camera,
 } from 'lucide-react';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, signOut } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, signOut, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc } from "firebase/firestore";
 import { auth, db, isFirebaseConfigured } from "./firebase";
 import SpotifyTrackProvider from "./providers/SpotifyTrackProvider.js";
@@ -243,6 +243,50 @@ export default function App() {
     if (!isDemoAuthMode) return;
     setDemoSessionFlag(hasDemoSession);
   }, [hasDemoSession, isDemoAuthMode]);
+
+  useEffect(() => {
+    if (isDemoAuthMode || !auth) return;
+
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
+        setIsAuthenticated(false);
+        setUserProfile(null);
+        setProfilePictureUrl(DEFAULT_PROFILE_IMAGE);
+        setIsConnected(false);
+        setIsPlaying(false);
+        return;
+      }
+
+      if (!firebaseUser.emailVerified) {
+        setIsAuthenticated(false);
+        return;
+      }
+
+      try {
+        const profileRef = doc(db, 'users', firebaseUser.uid);
+        const snapshot = await getDoc(profileRef);
+        if (snapshot.exists()) {
+          const data = snapshot.data() ?? {};
+          setUserProfile(data);
+          setProfilePictureUrl(
+            data?.profilePicture || DEFAULT_PROFILE_IMAGE
+          );
+        } else {
+          setUserProfile({ email: firebaseUser.email });
+          setProfilePictureUrl(DEFAULT_PROFILE_IMAGE);
+        }
+      } catch (error) {
+        console.error('Error restoring profile:', error);
+        setUserProfile({ email: firebaseUser.email });
+        setProfilePictureUrl(DEFAULT_PROFILE_IMAGE);
+      }
+
+      setIsAuthenticated(true);
+      setIsConnected(true);
+    });
+
+    return () => unsubscribe();
+  }, [isDemoAuthMode, auth, db]);
 
   const disconnectSpotify = useCallback(() => {
     setSpotifyToken(null);
