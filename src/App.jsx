@@ -226,6 +226,9 @@ export default function App() {
   const [hasDemoSession, setHasDemoSession] = useState(() =>
     loadDemoSessionFlag()
   );
+  const [isRestoringSession, setIsRestoringSession] = useState(
+    () => !isDemoAuthMode
+  );
 
   useEffect(() => {
     if (!isDemoAuthMode) return;
@@ -245,7 +248,10 @@ export default function App() {
   }, [hasDemoSession, isDemoAuthMode]);
 
   useEffect(() => {
-    if (isDemoAuthMode || !auth) return;
+    if (isDemoAuthMode || !auth) {
+      setIsRestoringSession(false);
+      return;
+    }
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
@@ -254,11 +260,13 @@ export default function App() {
         setProfilePictureUrl(DEFAULT_PROFILE_IMAGE);
         setIsConnected(false);
         setIsPlaying(false);
+        setIsRestoringSession(false);
         return;
       }
 
       if (!firebaseUser.emailVerified) {
         setIsAuthenticated(false);
+        setIsRestoringSession(false);
         return;
       }
 
@@ -283,6 +291,7 @@ export default function App() {
 
       setIsAuthenticated(true);
       setIsConnected(true);
+      setIsRestoringSession(false);
     });
 
     return () => unsubscribe();
@@ -1486,6 +1495,17 @@ export default function App() {
     if (!isDemoAuthMode || isAuthenticated || !hasDemoSession) return;
     continueInDemoMode();
   }, [isDemoAuthMode, isAuthenticated, hasDemoSession]);
+
+  if (!isDemoAuthMode && isRestoringSession) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center">
+        <div className="text-center text-white space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto" />
+          <p className="text-lg">Restoring your Beat session…</p>
+        </div>
+      </div>
+    );
+  }
 
   // --- Authentication UI ---
   if (!isAuthenticated) {
