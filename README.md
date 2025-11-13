@@ -10,7 +10,23 @@ A React application that queues music from Spotify based on your real-time heart
 - Spotify API integration
 
 ## Setup
-Get a Spotify API token from the Developer Console and paste it in the app.
+1. Install dependencies with `npm install`.
+2. Create a `.env.local` (for development) or fill out `.env.production` using the following keys:
+   - `REACT_APP_SPOTIFY_CLIENT_ID`
+   - `REACT_APP_SPOTIFY_REDIRECT_URI`
+   - `REACT_APP_FIREBASE_API_KEY`
+   - `REACT_APP_FIREBASE_AUTH_DOMAIN`
+   - `REACT_APP_FIREBASE_PROJECT_ID`
+   - `REACT_APP_FIREBASE_STORAGE_BUCKET`
+   - `REACT_APP_FIREBASE_MESSAGING_SENDER_ID`
+   - `REACT_APP_FIREBASE_APP_ID`
+   - `REACT_APP_FIREBASE_MEASUREMENT_ID` (optional, Analytics only)
+3. Run `npm start` to develop locally.
+
+If Firebase environment variables are not supplied the app automatically drops into a browser-only demo mode so you can continue testing the Spotify flow without a backend.
+
+## Deployment
+Build the project with `npm run build` and deploy the `build/` directory with Firebase Hosting. The CRA entry point now relies on `public/index.html`, so no manual script tag is required—Firebase Hosting will simply serve the generated bundle.
 
 ## Technologies
 - React

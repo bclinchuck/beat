@@ -16,20 +16,31 @@ import {
 } from 'lucide-react';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc } from "firebase/firestore";
-import { auth, db } from "./firebase";
+import { auth, db, isFirebaseConfigured } from "./firebase";
+import SpotifyTrackProvider from "./providers/SpotifyTrackProvider.js";
 
 // ----------------------------------------------------------------------
-// SPOTIFY OAUTH CONSTANTS (Replace these with your actual values)
+// SPOTIFY OAUTH CONSTANTS
 // ----------------------------------------------------------------------
-const SPOTIFY_CLIENT_ID = 'YOUR_SPOTIFY_CLIENT_ID_HERE';
-const SPOTIFY_REDIRECT_URI = 'http://localhost:3000/callback';
+const AUTH_STORAGE_KEY = 'beat_spotify_auth';
+const LOOPBACK_REDIRECT = 'http://127.0.0.1:3000/';
+const DEFAULT_REDIRECT = (() => {
+  if (process.env.REACT_APP_SPOTIFY_REDIRECT_URI) {
+    return process.env.REACT_APP_SPOTIFY_REDIRECT_URI;
+  }
+  if (typeof window === 'undefined') {
+    return LOOPBACK_REDIRECT;
+  }
+  const { protocol, port } = window.location;
+  const normalizedPort = port ? `:${port}` : ':3000';
+  return `${protocol}//127.0.0.1${normalizedPort}/`;
+})();
+const SPOTIFY_CLIENT_ID =
+  process.env.REACT_APP_SPOTIFY_CLIENT_ID || '70177f436adc418f98f6626d92667dde';
+const SPOTIFY_REDIRECT_URI = DEFAULT_REDIRECT;
 const SPOTIFY_SCOPES = [
   'user-read-private',
   'user-read-email',
-  'streaming',
-  'user-modify-playback-state',
-  'playlist-read-private',
-  'playlist-modify-public',
 ].join(' ');
 // ----------------------------------------------------------------------
 
@@ -37,12 +48,119 @@ const SPOTIFY_SCOPES = [
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Utility function to format milliseconds into M:SS string
+const DEFAULT_PROFILE_IMAGE =
+  'https://via.placeholder.com/150/9333ea/FFFFFF?text=P';
+const DEMO_USER_STORAGE_KEY = 'beat_demo_user';
+const DEMO_SESSION_KEY = 'beat_demo_session';
+
 const formatTime = (ms) => {
   if (ms === null || isNaN(ms) || ms < 0) return '0:00';
   const totalSeconds = Math.floor(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
+
+const formatBpm = (bpm) =>
+  typeof bpm === 'number' && !Number.isNaN(bpm) && bpm > 0
+    ? `${Math.round(bpm)} BPM`
+    : 'BPM n/a';
+
+const getDurationMs = (song) => {
+  if (!song || typeof song.durationMs !== 'number' || song.durationMs <= 0) {
+    return 210000; // fallback to 3.5 minutes if missing
+  }
+  return song.durationMs;
+};
+
+const loadStoredSpotifyAuth = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const persistSpotifyAuth = (payload) => {
+  if (typeof window === 'undefined') return;
+  if (!payload) {
+    window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    return;
+  }
+  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(payload));
+};
+
+const loadDemoAuthUser = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(DEMO_USER_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const persistDemoAuthUser = (user) => {
+  if (typeof window === 'undefined') return;
+  if (!user) {
+    window.localStorage.removeItem(DEMO_USER_STORAGE_KEY);
+    return;
+  }
+  window.localStorage.setItem(DEMO_USER_STORAGE_KEY, JSON.stringify(user));
+};
+
+const loadDemoSessionFlag = () => {
+  if (typeof window === 'undefined') return false;
+  return window.localStorage.getItem(DEMO_SESSION_KEY) === 'true';
+};
+
+const setDemoSessionFlag = (value) => {
+  if (typeof window === 'undefined') return;
+  if (!value) {
+    window.localStorage.removeItem(DEMO_SESSION_KEY);
+    return;
+  }
+  window.localStorage.setItem(DEMO_SESSION_KEY, 'true');
+};
+
+const createDefaultDemoUser = () => ({
+  name: 'Demo User',
+  username: 'demo',
+  email: 'demo@example.com',
+  password: 'demo123',
+  profilePicture: DEFAULT_PROFILE_IMAGE,
+});
+
+const generateRandomString = (length = 64) => {
+  const possible =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let text = '';
+  for (let i = 0; i < length; i += 1) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
+};
+
+const base64UrlEncode = (arrayBuffer) => {
+  let string = '';
+  const bytes = new Uint8Array(arrayBuffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i += 1) {
+    string += String.fromCharCode(bytes[i]);
+  }
+  return btoa(string).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+
+const createCodeChallenge = async (verifier) => {
+  if (typeof window === 'undefined' || !window.crypto?.subtle) {
+    throw new Error('Web Crypto API is not available.');
+  }
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const digest = await window.crypto.subtle.digest('SHA-256', data);
+  return base64UrlEncode(digest);
 };
 
 export default function App() {
@@ -53,6 +171,22 @@ export default function App() {
   const [queue, setQueue] = useState([]);
   const [selectedWorkout, setSelectedWorkout] = useState('cardio');
   const [showSetup, setShowSetup] = useState(false);
+  const [spotifyToken, setSpotifyToken] = useState(() => {
+    const stored = loadStoredSpotifyAuth();
+    return stored?.accessToken ?? null;
+  });
+  const [spotifyRefreshToken, setSpotifyRefreshToken] = useState(() => {
+    const stored = loadStoredSpotifyAuth();
+    return stored?.refreshToken ?? null;
+  });
+  const [spotifyTokenExpiresAt, setSpotifyTokenExpiresAt] = useState(() => {
+    const stored = loadStoredSpotifyAuth();
+    return stored?.expiresAt ?? null;
+  });
+  const [spotifyAuthInFlight, setSpotifyAuthInFlight] = useState(false);
+  const [spotifyError, setSpotifyError] = useState(null);
+  const [isFetchingTracks, setIsFetchingTracks] = useState(false);
+  const [trackError, setTrackError] = useState(null);
 
   // State for music progress
   const [currentPlaybackTime, setCurrentPlaybackTime] = useState(0); // in milliseconds
@@ -68,9 +202,10 @@ export default function App() {
 
   // Profile and Settings
   const [userProfile, setUserProfile] = useState(null);
-  const [profilePictureUrl, setProfilePictureUrl] = useState(
-    'https://via.placeholder.com/150/9333ea/FFFFFF?text=P'
-  );
+  const [profilePictureUrl, setProfilePictureUrl] = useState(() => {
+    const storedDemoUser = loadDemoAuthUser();
+    return storedDemoUser?.profilePicture || DEFAULT_PROFILE_IMAGE;
+  });
   const [showProfileSettings, setShowProfileSettings] = useState(false);
 
   // Form states
@@ -86,6 +221,219 @@ export default function App() {
   const [signupError, setSignupError] = useState('');
   const [loginError, setLoginError] = useState('');
   const [profileUpdateSuccess, setProfileUpdateSuccess] = useState(false);
+  const [demoUser, setDemoUser] = useState(() => loadDemoAuthUser());
+  const isDemoAuthMode = !isFirebaseConfigured;
+  const [hasDemoSession, setHasDemoSession] = useState(() =>
+    loadDemoSessionFlag()
+  );
+
+  useEffect(() => {
+    if (!isDemoAuthMode) return;
+    persistDemoAuthUser(demoUser);
+  }, [demoUser, isDemoAuthMode]);
+
+  const ensureDemoUser = useCallback(() => {
+    if (demoUser) return demoUser;
+    const defaultUser = createDefaultDemoUser();
+    setDemoUser(defaultUser);
+    return defaultUser;
+  }, [demoUser]);
+
+  useEffect(() => {
+    if (!isDemoAuthMode) return;
+    setDemoSessionFlag(hasDemoSession);
+  }, [hasDemoSession, isDemoAuthMode]);
+
+  const disconnectSpotify = useCallback(() => {
+    setSpotifyToken(null);
+    setSpotifyRefreshToken(null);
+    setSpotifyTokenExpiresAt(null);
+    setSpotifyError(null);
+    setTrackError(null);
+  }, []);
+
+  const refreshSpotifyAccessToken = useCallback(
+    async (refreshToken) => {
+      if (
+        !refreshToken ||
+        !SPOTIFY_CLIENT_ID ||
+        SPOTIFY_CLIENT_ID.includes('YOUR_SPOTIFY_CLIENT_ID')
+      ) {
+        return null;
+      }
+      try {
+        const body = new URLSearchParams({
+          client_id: SPOTIFY_CLIENT_ID,
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        });
+
+        const response = await fetch('https://accounts.spotify.com/api/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString(),
+        });
+
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(message || 'Unable to refresh Spotify token.');
+        }
+
+        const data = await response.json();
+        setSpotifyToken(data.access_token);
+        setSpotifyTokenExpiresAt(
+          Date.now() + ((data.expires_in ?? 3600) * 1000)
+        );
+        if (data.refresh_token) {
+          setSpotifyRefreshToken(data.refresh_token);
+        }
+        setSpotifyError(null);
+        return data.access_token;
+      } catch (error) {
+        setSpotifyError('Spotify session expired. Please reconnect.');
+        disconnectSpotify();
+        return null;
+      }
+    },
+    [disconnectSpotify]
+  );
+
+  const exchangeSpotifyCodeForToken = useCallback(
+    async (authorizationCode) => {
+      if (
+        !SPOTIFY_CLIENT_ID ||
+        SPOTIFY_CLIENT_ID.includes('YOUR_SPOTIFY_CLIENT_ID')
+      ) {
+        setSpotifyError(
+          'Set REACT_APP_SPOTIFY_CLIENT_ID before connecting to Spotify.'
+        );
+        return;
+      }
+
+      const verifier = sessionStorage.getItem('beat_spotify_code_verifier');
+      if (!verifier) {
+        setSpotifyError('Missing PKCE verifier. Start the login again.');
+        return;
+      }
+
+      setSpotifyAuthInFlight(true);
+
+      try {
+        const body = new URLSearchParams({
+          client_id: SPOTIFY_CLIENT_ID,
+          grant_type: 'authorization_code',
+          code: authorizationCode,
+          redirect_uri: SPOTIFY_REDIRECT_URI,
+          code_verifier: verifier,
+        });
+
+        const response = await fetch('https://accounts.spotify.com/api/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString(),
+        });
+
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(message || 'Unable to complete Spotify sign-in.');
+        }
+
+        const data = await response.json();
+        setSpotifyToken(data.access_token);
+        setSpotifyTokenExpiresAt(
+          Date.now() + ((data.expires_in ?? 3600) * 1000)
+        );
+        if (data.refresh_token) {
+          setSpotifyRefreshToken(data.refresh_token);
+        }
+        setIsConnected(true);
+        setShowSetup(false);
+        setSpotifyError(null);
+      } catch (error) {
+        setSpotifyError(error.message || 'Unable to complete Spotify sign-in.');
+      } finally {
+        setSpotifyAuthInFlight(false);
+        sessionStorage.removeItem('beat_spotify_code_verifier');
+        sessionStorage.removeItem('beat_spotify_auth_state');
+      }
+    },
+    [setIsConnected, setShowSetup]
+  );
+
+  useEffect(() => {
+    if (!spotifyToken) {
+      persistSpotifyAuth(null);
+      return;
+    }
+    persistSpotifyAuth({
+      accessToken: spotifyToken,
+      refreshToken: spotifyRefreshToken,
+      expiresAt: spotifyTokenExpiresAt,
+    });
+  }, [spotifyToken, spotifyRefreshToken, spotifyTokenExpiresAt]);
+
+  useEffect(() => {
+    if (!spotifyToken || !spotifyTokenExpiresAt) return;
+
+    const msUntilExpiry = spotifyTokenExpiresAt - Date.now();
+
+    if (msUntilExpiry <= 0) {
+      if (spotifyRefreshToken) {
+        refreshSpotifyAccessToken(spotifyRefreshToken);
+      } else {
+        disconnectSpotify();
+      }
+      return;
+    }
+
+    if (!spotifyRefreshToken) return;
+
+    const timeoutId = setTimeout(() => {
+      refreshSpotifyAccessToken(spotifyRefreshToken);
+    }, Math.max(1000, msUntilExpiry - 60000)); // refresh one minute early
+
+    return () => clearTimeout(timeoutId);
+  }, [
+    spotifyToken,
+    spotifyTokenExpiresAt,
+    spotifyRefreshToken,
+    refreshSpotifyAccessToken,
+    disconnectSpotify,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const authError = params.get('error');
+    const stateParam = params.get('state');
+    const storedState = sessionStorage.getItem('beat_spotify_auth_state');
+
+    if (!code && !authError) return;
+
+    if (authError) {
+      setSpotifyError(`Spotify authorization failed: ${authError}`);
+      setSpotifyAuthInFlight(false);
+    } else if (code) {
+      if (storedState && stateParam !== storedState) {
+        setSpotifyError('Spotify authorization state mismatch. Please try again.');
+        sessionStorage.removeItem('beat_spotify_code_verifier');
+        sessionStorage.removeItem('beat_spotify_auth_state');
+      } else {
+        exchangeSpotifyCodeForToken(code);
+      }
+    }
+
+    params.delete('code');
+    params.delete('state');
+    params.delete('error');
+    const newQuery = params.toString();
+    const newUrl = `${window.location.pathname}${
+      newQuery ? `?${newQuery}` : ''
+    }${window.location.hash}`;
+    window.history.replaceState({}, document.title, newUrl);
+  }, [exchangeSpotifyCodeForToken]);
 
 
 
@@ -472,11 +820,13 @@ export default function App() {
       return;
     }
 
+    const trackDuration = getDurationMs(currentSong);
+
     const interval = setInterval(() => {
       setCurrentPlaybackTime((prev) => {
         const newTime = prev + 1000;
         // Check if song is over
-        if (currentSong && newTime >= currentSong.durationMs) {
+        if (newTime >= trackDuration) {
           // Time is up, skip to next song
           skipSong();
           return 0; // The next useEffect handles the reset to 0 for the new song
@@ -490,35 +840,93 @@ export default function App() {
 
   // 2. LIVE QUEUEING MECHANISM (Triggers when heartRate changes)
   useEffect(() => {
-    if (!isConnected) return;
-
-    const songsForBPM = getMockSongsForBPM(heartRate, selectedWorkout);
-
-    if (songsForBPM.length === 0) {
+    if (!isConnected) {
       setQueue([]);
-
-      // If no songs match the workout/bpm, stop playback
-      if (currentSong) setCurrentSong(null);
+      setCurrentSong(null);
+      setTrackError(null);
+      setIsFetchingTracks(false);
       return;
     }
 
-    const currentSongMatch = currentSong
-      ? songsForBPM.find((s) => s.id === currentSong.id)
-      : null;
-    const newBestSong = songsForBPM[0];
+    if (!spotifyToken) {
+      const songsForBPM = getMockSongsForBPM(heartRate, selectedWorkout);
 
-    if (currentSongMatch) {
-      const otherSongs = songsForBPM.filter((s) => s.id !== currentSong.id);
-      setQueue([currentSong, ...otherSongs]);
-    } else {
-      setQueue(songsForBPM);
-
-      // If we are playing, or if a song hasn't been set yet, update to the new best match
-      if (isPlaying || !currentSong) {
-        setCurrentSong(newBestSong);
+      if (songsForBPM.length === 0) {
+        setQueue([]);
+        setCurrentSong(null);
+        setTrackError(
+          'No demo tracks found for this workout/BPM. Connect Spotify for live music.'
+        );
+        return;
       }
+
+      setTrackError(null);
+      setIsFetchingTracks(false);
+      setQueue(songsForBPM);
+      setCurrentSong((prev) => {
+        if (prev && songsForBPM.some((song) => song.id === prev.id)) {
+          return prev;
+        }
+        if (isPlaying || !prev) {
+          return songsForBPM[0];
+        }
+        return prev;
+      });
+      return;
     }
-  }, [heartRate, isConnected, selectedWorkout, isPlaying]);
+
+    let cancelled = false;
+    const provider = new SpotifyTrackProvider(spotifyToken);
+
+    const fetchRecommendations = async () => {
+      setIsFetchingTracks(true);
+      setTrackError(null);
+      try {
+        const tracks = await provider.getRecommendations(
+          heartRate,
+          selectedWorkout
+        );
+        if (cancelled) return;
+
+        setQueue(tracks);
+        setCurrentSong((prev) => {
+          if (!tracks.length) return null;
+          if (prev && tracks.some((song) => song.id === prev.id)) {
+            return prev;
+          }
+          if (isPlaying || !prev) {
+            return tracks[0];
+          }
+          return prev;
+        });
+      } catch (error) {
+        if (cancelled) return;
+        const friendly =
+          error?.message?.startsWith('Spotify 404')
+            ? 'Spotify did not return any recommendations for this combo yet. Try another workout or reconnect.'
+            : error?.message || 'Unable to load Spotify recommendations.';
+        setTrackError(friendly);
+        setQueue([]);
+        setCurrentSong(null);
+      } finally {
+        if (!cancelled) {
+          setIsFetchingTracks(false);
+        }
+      }
+    };
+
+    fetchRecommendations();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    heartRate,
+    selectedWorkout,
+    isConnected,
+    spotifyToken,
+    isPlaying,
+  ]);
 
   /**
    * Handler to allow user to scrub/jump to a new position in the song.
@@ -554,70 +962,106 @@ export default function App() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setLoginError(""); // Clear previous errors
+    setLoginError(''); // Clear previous errors
 
-    // ✅ Check empty fields
     if (!loginIdentifier.trim() || !loginPassword.trim()) {
-      setLoginError("Please enter a username/email and password");
+      setLoginError('Please enter a username/email and password');
+      return;
+    }
+
+    if (isDemoAuthMode) {
+      const localUser = ensureDemoUser();
+      const identifier = loginIdentifier.trim().toLowerCase();
+      const matchesEmail =
+        localUser.email?.toLowerCase() === identifier;
+      const matchesUsername =
+        localUser.username?.toLowerCase() === identifier;
+
+      if (!matchesEmail && !matchesUsername) {
+        setLoginError('Username or email not found.');
+        return;
+      }
+
+      if (localUser.password !== loginPassword) {
+        setLoginError('Incorrect password. Please try again.');
+        return;
+      }
+
+      setUserProfile({
+        name: localUser.name,
+        username: localUser.username,
+        email: localUser.email,
+        profilePicture: localUser.profilePicture,
+      });
+      setProfilePictureUrl(
+        localUser.profilePicture || DEFAULT_PROFILE_IMAGE
+      );
+      setIsAuthenticated(true);
+      setIsConnected(true);
+      setIsPlaying(true);
+      setHasDemoSession(true);
       return;
     }
 
     try {
       let email = loginIdentifier;
 
-      // ✅ If input is a username
-      if (!loginIdentifier.includes("@")) {
-        const usersRef = collection(db, "users");
-        const q = query(usersRef, where("username", "==", loginIdentifier));
+      if (!loginIdentifier.includes('@')) {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('username', '==', loginIdentifier));
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-          setLoginError("Username not found"); // <-- red popup shows
+          setLoginError('Username not found');
           return;
         }
 
         email = querySnapshot.docs[0].data().email;
       }
 
-      // ✅ Sign in
-      const userCred = await signInWithEmailAndPassword(auth, email, loginPassword);
+      const userCred = await signInWithEmailAndPassword(
+        auth,
+        email,
+        loginPassword
+      );
 
-      // ✅ Check email verification
       if (!userCred.user.emailVerified) {
         await sendEmailVerification(userCred.user);
-        setLoginError("Please verify your email before logging in. Verification email resent!"); // <-- red popup shows
+        setLoginError(
+          'Please verify your email before logging in. Verification email resent!'
+        );
         return;
       }
 
-      // ✅ Get user info from Firestore
-      const userDoc = await getDoc(doc(db, "users", userCred.user.uid));
+      const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
       if (userDoc.exists()) {
         setUserProfile(userDoc.data());
-        setProfilePictureUrl(userDoc.data().profilePicture || 'https://via.placeholder.com/150/9333ea/FFFFFF?text=P');
+        setProfilePictureUrl(
+          userDoc.data().profilePicture || DEFAULT_PROFILE_IMAGE
+        );
       } else {
         setUserProfile({ email: userCred.user.email });
-        setProfilePictureUrl(userDoc.data().profilePicture || 'https://via.placeholder.com/150/9333ea/FFFFFF?text=P');
+        setProfilePictureUrl(DEFAULT_PROFILE_IMAGE);
       }
 
       setIsAuthenticated(true);
       setIsConnected(true);
       setIsPlaying(true);
-
     } catch (error) {
-  if (error.code === "auth/too-many-requests") {
-    setLoginError("Too many failed attempts. Please wait a few minutes before trying again.");
-  } else if (error.code === "auth/user-not-found") {
-    setLoginError("Username or email not found.");
-  } else if (error.code === "auth/wrong-password") {
-    setLoginError("Incorrect password. Please try again.");
-  } else if (error.code === "auth/invalid-credential") {
-    setLoginError("Incorrect password. Please try again.");
-  }
-  else {
-    setLoginError(error.message);
-  }
-}
-
+      if (error.code === 'auth/too-many-requests') {
+        setLoginError(
+          'Too many failed attempts. Please wait a few minutes before trying again.'
+        );
+      } else if (error.code === 'auth/user-not-found') {
+        setLoginError('Username or email not found.');
+      } else if (error.code === 'auth/wrong-password') {
+        setLoginError('Incorrect password. Please try again.');
+      } else if (error.code === 'auth/invalid-credential') {
+        setLoginError('Incorrect password. Please try again.');
+      } else {
+        setLoginError(error.message);
+      }
+    }
   };
 
 
@@ -652,6 +1096,38 @@ export default function App() {
     }
 
     try {
+      if (isDemoAuthMode) {
+        const emailLower = signupEmail.toLowerCase();
+        const usernameLower = signupUsername.toLowerCase();
+        if (
+          demoUser &&
+          (demoUser.email?.toLowerCase() === emailLower ||
+            demoUser.username?.toLowerCase() === usernameLower)
+        ) {
+          setSignupError("An account already exists in local demo mode. Try logging in.");
+          return;
+        }
+
+        const newUser = {
+          name: signupName,
+          username: signupUsername,
+          email: signupEmail,
+          password: signupPassword,
+          profilePicture: DEFAULT_PROFILE_IMAGE,
+        };
+
+        setDemoUser(newUser);
+        setSignupError("Local account created! Sign in to continue.");
+        setSignupName("");
+        setSignupUsername("");
+        setSignupEmail("");
+        setSignupPassword("");
+        setSignupConfirmPassword("");
+        setIsSignUp(false);
+        setShowLogin(true);
+        return;
+      }
+
       // ✅ Create account in Firebase Auth
       const userCred = await createUserWithEmailAndPassword(
         auth,
@@ -718,13 +1194,14 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    disconnectSpotify();
     setIsAuthenticated(false);
     setUserProfile(null);
     setIsConnected(false);
     setShowSetup(false);
     setShowProfileSettings(false);
     setProfilePictureUrl(
-      'https://via.placeholder.com/150/9333ea/FFFFFF?text=P'
+      DEFAULT_PROFILE_IMAGE
     );
     setLoginIdentifier('');
     setLoginPassword('');
@@ -737,76 +1214,134 @@ export default function App() {
     setIsPlaying(false);
     setQueue([]);
     setCurrentPlaybackTime(0);
+    setHasDemoSession(false);
   };
 
   const handleProfilePictureChange = async (newUrl) => {
-    try {
-      if (!auth.currentUser) {
-        console.error("No user logged in!");
-        return;
-      }
-
-      // Update local state
-      setProfilePictureUrl(newUrl);
-      setUserProfile(prev => ({
-        ...prev,
-        profilePicture: newUrl,
-      }));
-
-      // Update Firestore
-      const userRef = doc(db, "users", auth.currentUser.uid);
-      await updateDoc(userRef, { profilePicture: newUrl });
-
-      // ✅ Show green popup
-      setProfileUpdateSuccess(true); // <-- new state you'll define
-
-      // Automatically go back to homepage after 2 seconds
+    const finalUrl = newUrl || DEFAULT_PROFILE_IMAGE;
+    const completeUpdate = () => {
+      setProfilePictureUrl(finalUrl);
+      setUserProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              profilePicture: finalUrl,
+            }
+          : prev
+      );
+      setProfileUpdateSuccess(true);
       setTimeout(() => {
         setShowProfileSettings(false);
-        // Optionally navigate elsewhere if you have a router
-        // navigate("/"); 
+        setProfileUpdateSuccess(false);
       }, 2000);
-    } catch (error) {
-      console.error("Error updating profile picture:", error.message);
-      alert("Error saving profile picture: " + error.message);
+    };
+
+    if (isDemoAuthMode) {
+      setDemoUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              profilePicture: finalUrl,
+            }
+          : prev
+      );
+      completeUpdate();
+      return;
     }
-  };
 
-
-  const initiateSpotifyAuth = () => {
-    const authUrl = `http://googleusercontent.com/spotify.com/4`;
-    window.location.href = authUrl;
-
-    // Demo Simulation of OAuth Success
-    setTimeout(() => {
-      setIsConnected(true);
-      setShowSetup(false);
-      console.log('Spotify token received and connected (Demo Simulation)');
-    }, 5000);
-  };
-
-  // 🖼️ Update profile picture URL in Firestore
-  const handleProfilePictureSave = async () => {
     try {
-      if (!auth.currentUser) {
-        console.error("No user logged in!");
+      if (!auth?.currentUser) {
+        console.error('No user logged in!');
         return;
       }
 
-      const userRef = doc(db, "users", auth.currentUser.uid);
-      await updateDoc(userRef, {
-        profilePicture: profilePictureUrl,
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      await updateDoc(userRef, { profilePicture: finalUrl });
+      completeUpdate();
+    } catch (error) {
+      console.error('Error updating profile picture:', error.message);
+      alert('Error saving profile picture: ' + error.message);
+    }
+  };
+
+
+  const initiateSpotifyAuth = useCallback(async () => {
+    setSpotifyError(null);
+
+    if (
+      !SPOTIFY_CLIENT_ID ||
+      SPOTIFY_CLIENT_ID.includes('YOUR_SPOTIFY_CLIENT_ID')
+    ) {
+      setSpotifyError(
+        'Set REACT_APP_SPOTIFY_CLIENT_ID before connecting to Spotify.'
+      );
+      return;
+    }
+
+    if (typeof window === 'undefined' || !window.crypto?.subtle) {
+      setSpotifyError(
+        'This device does not support the Web Crypto APIs required for Spotify login.'
+      );
+      return;
+    }
+
+    try {
+      setSpotifyAuthInFlight(true);
+      const verifier = generateRandomString(64);
+      const challenge = await createCodeChallenge(verifier);
+      const state = generateRandomString(16);
+
+      sessionStorage.setItem('beat_spotify_code_verifier', verifier);
+      sessionStorage.setItem('beat_spotify_auth_state', state);
+
+      const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: SPOTIFY_CLIENT_ID,
+        redirect_uri: SPOTIFY_REDIRECT_URI,
+        scope: SPOTIFY_SCOPES,
+        code_challenge_method: 'S256',
+        code_challenge: challenge,
+        state,
       });
 
-      setUserProfile(prev => ({
-        ...prev,
-        profilePicture: profilePictureUrl,
-      }));
-
-      console.log("Profile picture updated successfully!");
+      window.location.assign(
+        `https://accounts.spotify.com/authorize?${params.toString()}`
+      );
     } catch (error) {
-      console.error("Error updating profile picture:", error.message);
+      console.error('Spotify auth error:', error);
+      setSpotifyAuthInFlight(false);
+      setSpotifyError(
+        error?.message || 'Unable to start Spotify authorization.'
+      );
     }
+  }, []);
+
+  // Legacy helper (kept for backward compatibility)
+  const handleProfilePictureSave = async () => {
+    handleProfilePictureChange(profilePictureUrl);
+  };
+
+  const continueInDemoMode = () => {
+    if (!isDemoAuthMode) return;
+    const user = ensureDemoUser();
+    setUserProfile({
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      profilePicture: user.profilePicture,
+    });
+    setProfilePictureUrl(user.profilePicture || DEFAULT_PROFILE_IMAGE);
+    setIsAuthenticated(true);
+    setIsConnected(true);
+    setIsPlaying(true);
+    setShowLogin(false);
+    setIsSignUp(false);
+    setShowForgotUsername(false);
+    setShowForgotPassword(false);
+    setShowEmailSent(false);
+    setLoginError('');
+    setSignupError('');
+    setHasDemoSession(true);
   };
 
 
@@ -853,7 +1388,7 @@ export default function App() {
 
           <div className="flex flex-col items-center mb-6">
             <img
-              src={tempUrl || 'https://via.placeholder.com/150/9333ea/FFFFFF?text=P'}
+              src={tempUrl || DEFAULT_PROFILE_IMAGE}
               alt="Profile"
               className="w-24 h-24 rounded-full object-cover mb-4 border-4 border-purple-500 shadow-xl"
             />
@@ -893,7 +1428,12 @@ export default function App() {
     return <ProfileSettingsModal />;
   }
 
-  // --- Authentication UI (omitted for brevity, unchanged) ---
+  useEffect(() => {
+    if (!isDemoAuthMode || isAuthenticated || !hasDemoSession) return;
+    continueInDemoMode();
+  }, [isDemoAuthMode, isAuthenticated, hasDemoSession]);
+
+  // --- Authentication UI ---
   if (!isAuthenticated) {
     // ... [Authentication UI Code Here - Unchanged from previous step] ...
     return (
@@ -1055,6 +1595,11 @@ export default function App() {
                   <h2 className="text-2xl font-bold text-white mb-6">
                     Sign In
                   </h2>
+                  {isDemoAuthMode && (
+                    <div className="bg-blue-900/40 border border-blue-500 text-blue-100 p-3 rounded-lg mb-4 text-sm">
+                      Local demo auth mode is active. Accounts you create here live only in this browser.
+                    </div>
+                  )}
                   {loginError && (
                     <div className="bg-red-900/50 border border-red-500 text-red-300 p-3 rounded-lg mb-4 text-sm">
                       {loginError}
@@ -1121,6 +1666,15 @@ export default function App() {
                     >
                       Sign In
                     </button>
+                    {isDemoAuthMode && (
+                      <button
+                        type="button"
+                        onClick={continueInDemoMode}
+                        className="w-full mt-3 bg-gray-700 text-gray-200 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-all"
+                      >
+                        Continue as guest (demo mode)
+                      </button>
+                    )}
                   </div>
 
                   <div className="mt-6 text-center">
@@ -1142,6 +1696,11 @@ export default function App() {
                 <h2 className="text-2xl font-bold text-white mb-6">
                   Create Account
                 </h2>
+                {isDemoAuthMode && (
+                  <div className="bg-blue-900/40 border border-blue-500 text-blue-100 p-3 rounded-lg mb-4 text-sm">
+                    This account lives only in your browser while Firebase is disconnected.
+                  </div>
+                )}
 
                 {signupError && (
                   <div className="bg-red-900/50 border border-red-500 text-red-300 p-3 rounded-lg mb-4 text-sm">
@@ -1276,26 +1835,72 @@ export default function App() {
             </div>
 
             <div className="space-y-6">
-              <div className="bg-gray-700 rounded-lg p-6 text-center">
-                <h3 className="text-xl font-semibold text-white mb-2">
-                  Authorize Spotify
-                </h3>
-                <p className="text-gray-400 mb-4">
-                  This will redirect you to Spotify to securely link your
-                  account and grant permission.
-                </p>
+              {spotifyError && (
+                <div className="bg-red-900/40 border border-red-700 text-red-100 rounded-lg p-4 text-sm">
+                  {spotifyError}
+                </div>
+              )}
+
+              <div className="bg-gray-700 rounded-lg p-6 text-center space-y-4">
+                <div>
+                  <h3 className="text-xl font-semibold text-white mb-2">
+                    Authorize Spotify
+                  </h3>
+                  <p className="text-gray-400">
+                    We use Spotify&apos;s browser-based PKCE flow, so it works
+                    on Firebase Hosting without a custom backend.
+                  </p>
+                </div>
 
                 <button
                   onClick={initiateSpotifyAuth}
-                  className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all"
+                  disabled={spotifyAuthInFlight}
+                  className={`w-full py-3 rounded-lg font-semibold transition-all ${
+                    spotifyAuthInFlight
+                      ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700'
+                  }`}
                 >
-                  Connect with Spotify
+                  {spotifyAuthInFlight ? 'Opening Spotify…' : 'Connect with Spotify'}
                 </button>
-                <p className="text-sm text-red-400 mt-2">
-                  **NOTE: This requires a backend server to complete the token
-                  exchange.**
+
+                <p className="text-sm text-gray-400">
+                  Make sure{' '}
+                  <span className="text-white font-mono">
+                    {SPOTIFY_REDIRECT_URI}
+                  </span>{' '}
+                  is added as a Redirect URI in your Spotify Developer
+                  Dashboard.
                 </p>
               </div>
+
+              {spotifyToken && (
+                <div className="bg-green-900/30 border border-green-600 rounded-lg p-6 text-center space-y-4">
+                  <div>
+                    <h3 className="text-xl font-semibold text-white">
+                      Spotify Connected
+                    </h3>
+                    <p className="text-green-100 text-sm">
+                      Your Firebase-hosted app is linked to Spotify. Close this
+                      dialog to start syncing live tracks.
+                    </p>
+                  </div>
+                  <div className="flex flex-col md:flex-row gap-3">
+                    <button
+                      onClick={() => setShowSetup(false)}
+                      className="flex-1 bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-500 transition-colors"
+                    >
+                      Back to Dashboard
+                    </button>
+                    <button
+                      onClick={disconnectSpotify}
+                      className="flex-1 bg-gray-800 border border-gray-600 text-gray-100 py-2 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
+                    >
+                      Disconnect Spotify
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center justify-center">
                 <div className="w-full border-t border-gray-700"></div>
@@ -1305,6 +1910,7 @@ export default function App() {
 
               <button
                 onClick={() => {
+                  disconnectSpotify();
                   setIsConnected(true);
                   setShowSetup(false);
                   setIsPlaying(true);
@@ -1333,7 +1939,9 @@ export default function App() {
             <div>
               <h1 className="text-3xl font-bold text-white">Beat</h1>
               <p className="text-gray-400 text-sm">
-                Your music adapts to your heart rate
+                {spotifyToken
+                  ? 'Spotify live mode · playlists refresh with your BPM'
+                  : 'Demo mode · connect Spotify to stream real recommendations'}
               </p>
             </div>
           </div>
@@ -1429,7 +2037,7 @@ export default function App() {
                     </p>
                     <div className="flex items-center space-x-3">
                       <span className="bg-green-500/20 text-green-400 text-sm font-semibold px-3 py-1 rounded-full">
-                        {currentSong.bpm} BPM
+                        {formatBpm(currentSong.bpm)}
                       </span>
                     </div>
                   </div>
@@ -1468,7 +2076,11 @@ export default function App() {
                       className="bg-green-500 h-full transition-none"
                       style={{
                         width: `${
-                          (currentPlaybackTime / currentSong.durationMs) * 100
+                          Math.min(
+                            100,
+                            (currentPlaybackTime / getDurationMs(currentSong)) *
+                              100
+                          )
                         }%`,
                         // Add a subtle hover effect for better scrubbing feel
                         boxShadow: '0 0 10px rgba(16, 185, 129, 0.5)',
@@ -1497,6 +2109,25 @@ export default function App() {
                 <Activity className="w-5 h-5 mr-2" />
                 Queue (Matched to Your BPM)
               </h3>
+              {spotifyToken ? (
+                <p className="text-xs text-green-300 mb-3">
+                  Live Spotify recommendations updating with your heart rate.
+                </p>
+              ) : (
+                <p className="text-xs text-yellow-300 mb-3">
+                  Using demo tracks. Connect Spotify for real music.
+                </p>
+              )}
+              {isFetchingTracks && spotifyToken && (
+                <div className="bg-green-900/20 border border-green-700 text-green-100 text-sm rounded-lg p-3 mb-3">
+                  Syncing with Spotify&hellip;
+                </div>
+              )}
+              {trackError && (
+                <div className="bg-red-900/30 border border-red-700 text-red-100 text-sm rounded-lg p-3 mb-3">
+                  {trackError}
+                </div>
+              )}
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {queue.map((song, idx) => (
                   <div
@@ -1550,7 +2181,7 @@ export default function App() {
                             : 'text-green-400'
                         }`}
                       >
-                        {song.bpm} BPM
+                        {formatBpm(song.bpm)}
                       </span>
                       {currentSong?.id === song.id && (
                         <Music className="w-4 h-4 text-white animate-pulse" />

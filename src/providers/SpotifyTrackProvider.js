@@ -39,10 +39,13 @@ export default class SpotifyTrackProvider extends TrackProvider {
     // 1) /v1/recommendations
     const params = new URLSearchParams({
       limit: "20",
+      market: "from_token",
       seed_genres: genre,
       target_tempo: String(target),
       min_tempo: String(min),
-      max_tempo: String(max)
+      max_tempo: String(max),
+      min_energy: "0.3",
+      min_danceability: "0.3"
     });
 
     const rec = await this.#fetchJSON(
@@ -85,7 +88,16 @@ export default class SpotifyTrackProvider extends TrackProvider {
     if (!resp.ok) {
       // Surface a friendly error (401 = expired/invalid token)
       const msg = await resp.text();
-      throw new Error(`Spotify ${resp.status}: ${msg}`);
+      let friendlyMsg = msg;
+      try {
+        const parsed = JSON.parse(msg);
+        if (parsed?.error?.message) {
+          friendlyMsg = parsed.error.message;
+        }
+      } catch {
+        // ignore JSON parse issues
+      }
+      throw new Error(`Spotify ${resp.status}: ${friendlyMsg || msg}`);
     }
     return resp.json();
   }
