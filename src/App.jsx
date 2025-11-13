@@ -1033,12 +1033,14 @@ export default function App() {
         return;
       }
 
-      const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
-      if (userDoc.exists()) {
-        setUserProfile(userDoc.data());
-        setProfilePictureUrl(
-          userDoc.data().profilePicture || DEFAULT_PROFILE_IMAGE
-        );
+      const userDocRef = doc(db, 'users', userCred.user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      const userData =
+        userDocSnap && userDocSnap.exists() ? userDocSnap.data() : null;
+
+      if (userData) {
+        setUserProfile(userData);
+        setProfilePictureUrl(userData.profilePicture || DEFAULT_PROFILE_IMAGE);
       } else {
         setUserProfile({ email: userCred.user.email });
         setProfilePictureUrl(DEFAULT_PROFILE_IMAGE);
