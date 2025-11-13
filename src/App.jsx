@@ -1034,13 +1034,21 @@ export default function App() {
       }
 
       const userDocRef = doc(db, 'users', userCred.user.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      const userData =
-        userDocSnap && userDocSnap.exists() ? userDocSnap.data() : null;
+      let userData = null;
 
-      if (userData) {
+      try {
+        const userDocSnap = await getDoc(userDocRef);
+        userData =
+          userDocSnap?.exists() && typeof userDocSnap.data === 'function'
+            ? userDocSnap.data() ?? null
+            : null;
+      } catch (docError) {
+        console.error('Error fetching user profile:', docError);
+      }
+
+      if (userData && typeof userData === 'object') {
         setUserProfile(userData);
-        setProfilePictureUrl(userData.profilePicture || DEFAULT_PROFILE_IMAGE);
+        setProfilePictureUrl(userData?.profilePicture || DEFAULT_PROFILE_IMAGE);
       } else {
         setUserProfile({ email: userCred.user.email });
         setProfilePictureUrl(DEFAULT_PROFILE_IMAGE);
