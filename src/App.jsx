@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Heart,
   Music,
@@ -23,6 +23,7 @@ import SpotifyTrackProvider from "./providers/SpotifyTrackProvider.js";
 // SPOTIFY OAUTH CONSTANTS
 // ----------------------------------------------------------------------
 const AUTH_STORAGE_KEY = 'beat_spotify_auth';
+const FIREBASE_USER_STORAGE_KEY = 'beat_firebase_user';
 const LOOPBACK_REDIRECT = 'https://beat-e9fd0.web.app/';
 const DEFAULT_REDIRECT = (() => {
   if (process.env.REACT_APP_SPOTIFY_REDIRECT_URI) {
@@ -132,6 +133,25 @@ const createDefaultDemoUser = () => ({
   profilePicture: DEFAULT_PROFILE_IMAGE,
 });
 
+const loadStoredFirebaseUser = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(FIREBASE_USER_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const persistFirebaseUser = (user) => {
+  if (typeof window === 'undefined') return;
+  if (!user) {
+    window.localStorage.removeItem(FIREBASE_USER_STORAGE_KEY);
+    return;
+  }
+  window.localStorage.setItem(FIREBASE_USER_STORAGE_KEY, JSON.stringify(user));
+};
+
 const generateRandomString = (length = 64) => {
   const possible =
     'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -163,6 +183,7 @@ const createCodeChallenge = async (verifier) => {
 };
 
 export default function App() {
+  const storedFirebaseUser = useMemo(() => loadStoredFirebaseUser(), []);
   const [heartRate, setHeartRate] = useState(72);
   const [isConnected, setIsConnected] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -191,7 +212,9 @@ export default function App() {
   const [currentPlaybackTime, setCurrentPlaybackTime] = useState(0); // in milliseconds
 
   // Authentication states
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    () => !!storedFirebaseUser
+  );
   const [showLogin, setShowLogin] = useState(true);
   const [isSignUp, setIsSignUp] = useState(false);
   const [showForgotUsername, setShowForgotUsername] = useState(false);
@@ -200,9 +223,12 @@ export default function App() {
   const [emailSentMessage, setEmailSentMessage] = useState('');
 
   // Profile and Settings
-  const [userProfile, setUserProfile] = useState(null);
+  const [userProfile, setUserProfile] = useState(() => storedFirebaseUser);
   const [profilePictureUrl, setProfilePictureUrl] = useState(() => {
     const storedDemoUser = loadDemoAuthUser();
+    if (storedFirebaseUser?.profilePicture) {
+      return storedFirebaseUser.profilePicture;
+    }
     return storedDemoUser?.profilePicture || DEFAULT_PROFILE_IMAGE;
   });
   const [showProfileSettings, setShowProfileSettings] = useState(false);
@@ -226,7 +252,7 @@ export default function App() {
     loadDemoSessionFlag()
   );
   const [isRestoringSession, setIsRestoringSession] = useState(
-    () => !isDemoAuthMode
+    () => !isDemoAuthMode && !storedFirebaseUser
   );
 
   useEffect(() => {
@@ -259,6 +285,7 @@ export default function App() {
         setProfilePictureUrl(DEFAULT_PROFILE_IMAGE);
         setIsConnected(false);
         setIsPlaying(false);
+        persistFirebaseUser(null);
         setIsRestoringSession(false);
         return;
       }
@@ -278,14 +305,29 @@ export default function App() {
           setProfilePictureUrl(
             data?.profilePicture || DEFAULT_PROFILE_IMAGE
           );
+          persistFirebaseUser({
+            uid: firebaseUser.uid,
+            ...data,
+            profilePicture: data?.profilePicture || DEFAULT_PROFILE_IMAGE,
+          });
         } else {
           setUserProfile({ email: firebaseUser.email });
           setProfilePictureUrl(DEFAULT_PROFILE_IMAGE);
+           persistFirebaseUser({
+             uid: firebaseUser.uid,
+             email: firebaseUser.email,
+             profilePicture: DEFAULT_PROFILE_IMAGE,
+           });
         }
       } catch (error) {
         console.error('Error restoring profile:', error);
         setUserProfile({ email: firebaseUser.email });
         setProfilePictureUrl(DEFAULT_PROFILE_IMAGE);
+        persistFirebaseUser({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          profilePicture: DEFAULT_PROFILE_IMAGE,
+        });
       }
 
       setIsAuthenticated(true);
@@ -1089,7 +1131,9 @@ export default function App() {
       try {
         const userDocRef = doc(db, 'users', userCred.user.uid);
         const snapshot = await getDoc(userDocRef);
-        profileFromFirestore = snapshot?.exists() ? snapshot?.data?.() ?? null : null;
+        profileFromFirestore = snapshot?.exists()
+          ? snapshot?.data?.() ?? null
+          : null;
       } catch (docError) {
         console.warn('Falling back to default profile data:', docError);
       }
@@ -1099,12 +1143,19 @@ export default function App() {
           ? profileFromFirestore
           : { email: userCred.user.email };
 
-      setUserProfile(safeProfile);
       const safeProfilePicture =
-        typeof safeProfile?.profilePicture === 'string' && safeProfile.profilePicture.length
+        typeof safeProfile?.profilePicture === 'string' &&
+        safeProfile.profilePicture.length
           ? safeProfile.profilePicture
           : DEFAULT_PROFILE_IMAGE;
+
+      setUserProfile(safeProfile);
       setProfilePictureUrl(safeProfilePicture);
+      persistFirebaseUser({
+        uid: userCred.user.uid,
+        ...safeProfile,
+        profilePicture: safeProfilePicture,
+      });
 
       setIsAuthenticated(true);
       setIsConnected(true);
@@ -1277,6 +1328,7 @@ export default function App() {
     setQueue([]);
     setCurrentPlaybackTime(0);
     setHasDemoSession(false);
+    persistFirebaseUser(null);
   };
 
   const handleProfilePictureChange = async (newUrl) => {
