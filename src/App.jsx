@@ -979,14 +979,22 @@ export default function App() {
 
     const fetchRecommendations = async () => {
       setIsFetchingTracks(true);
-      setTrackError(null);
       try {
         const tracks = await provider.getRecommendations(selectedWorkout);
         if (cancelled) return;
 
+        if (!tracks.length) {
+          setTrackError(
+            'Spotify did not return songs for this workout yet. Try another workout or reconnect.'
+          );
+          setQueue([]);
+          setCurrentSong(null);
+          return;
+        }
+
+        setTrackError(null);
         setQueue(tracks);
         setCurrentSong((prev) => {
-          if (!tracks.length) return null;
           if (prev && tracks.some((song) => song.id === prev.id)) {
             return prev;
           }
@@ -999,7 +1007,7 @@ export default function App() {
         if (cancelled) return;
         const friendly =
           error?.message?.startsWith('Spotify 404')
-            ? 'Spotify did not return any recommendations for this combo yet. Try another workout or reconnect.'
+            ? 'Spotify did not return any recommendations for this workout yet.'
             : error?.message || 'Unable to load Spotify recommendations.';
         setTrackError(friendly);
         setQueue([]);
