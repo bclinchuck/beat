@@ -48,9 +48,18 @@ export default class SpotifyTrackProvider extends TrackProvider {
       min_danceability: "0.3"
     });
 
-    const rec = await this.#fetchJSON(
-      `https://api.spotify.com/v1/recommendations?${params.toString()}`
-    );
+    let rec;
+    try {
+      rec = await this.#fetchJSON(
+        `https://api.spotify.com/v1/recommendations?${params.toString()}`
+      );
+    } catch (error) {
+      // Spotify returns 404 when no tracks match; treat as empty results
+      if (typeof error.message === "string" && error.message.startsWith("Spotify 404")) {
+        return [];
+      }
+      throw error;
+    }
 
     const tracks = Array.isArray(rec?.tracks) ? rec.tracks : [];
     if (!tracks.length) return [];
