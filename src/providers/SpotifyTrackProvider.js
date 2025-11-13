@@ -65,7 +65,16 @@ export default class SpotifyTrackProvider extends TrackProvider {
     if (!tracks.length) return [];
 
     const ids = tracks.map(t => t.id).filter(Boolean);
-    const featuresById = await this.#fetchAudioFeatures(ids);
+    let featuresById = {};
+    try {
+      featuresById = await this.#fetchAudioFeatures(ids);
+    } catch (error) {
+      if (typeof error.message === "string" && error.message.startsWith("Spotify 404")) {
+        featuresById = {};
+      } else {
+        throw error;
+      }
+    }
 
     // Normalize to the shape your app already uses
     return tracks.map(t => ({

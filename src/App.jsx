@@ -32,7 +32,9 @@ const DEFAULT_REDIRECT = (() => {
   if (typeof window === 'undefined') {
     return LOOPBACK_REDIRECT;
   }
-  const origin = window.location.origin || `${window.location.protocol}//${window.location.host}`;
+  const origin =
+    window.location.origin ||
+    `${window.location.protocol}//${window.location.host}`;
   return origin.endsWith('/') ? origin : `${origin}/`;
 })();
 const SPOTIFY_CLIENT_ID =
@@ -52,6 +54,14 @@ const DEFAULT_PROFILE_IMAGE =
   'https://via.placeholder.com/150/9333ea/FFFFFF?text=P';
 const DEMO_USER_STORAGE_KEY = 'beat_demo_user';
 const DEMO_SESSION_KEY = 'beat_demo_session';
+const WORKOUT_TEMPO_MAP = {
+  cardio: { min: 120, target: 140, max: 160 },
+  strength: { min: 95, target: 110, max: 125 },
+  yoga: { min: 60, target: 70, max: 85 },
+  hiit: { min: 150, target: 170, max: 185 },
+  warmup: { min: 80, target: 95, max: 110 },
+  cooldown: { min: 55, target: 65, max: 80 },
+};
 
 const formatTime = (ms) => {
   if (ms === null || isNaN(ms) || ms < 0) return '0:00';
@@ -72,6 +82,9 @@ const getDurationMs = (song) => {
   }
   return song.durationMs;
 };
+
+const getWorkoutTempoRange = (workout) =>
+  WORKOUT_TEMPO_MAP[workout] || WORKOUT_TEMPO_MAP.cardio;
 
 const loadStoredSpotifyAuth = () => {
   if (typeof window === 'undefined') return null;
@@ -576,23 +589,15 @@ export default function App() {
     },
   ];
 
-  // 1. Heart Rate Simulation (unchanged)
+  // Heart rate now reflects the typical tempo target for the selected workout
   useEffect(() => {
     if (!isConnected) return;
+    const { target } = getWorkoutTempoRange(selectedWorkout);
+    setHeartRate(target);
+  }, [isConnected, selectedWorkout]);
 
-    const interval = setInterval(() => {
-      setHeartRate((prev) => {
-        const change = Math.random() * 10 - 5;
-        const newRate = Math.max(50, Math.min(200, prev + change));
-        return Math.round(newRate);
-      });
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [isConnected]);
-
-  // Mock Song Database - UPDATED with realistic durationMs
-  const getMockSongsForBPM = (bpm, workout) => {
+  // Mock Song Database grouped by workout category
+  const getMockSongsForWorkout = (workout) => {
     const songs = [
       // Duration in MS: 3:48
       {
@@ -868,12 +873,12 @@ export default function App() {
 
     const workoutSongs = songs.filter((s) => s.workout === workout);
 
-    // Filter songs that are within +/- 20 BPM of the current heart rate
+    const { target } = getWorkoutTempoRange(workout);
+
     return workoutSongs
-      .filter((song) => Math.abs(song.bpm - bpm) <= 20)
-      .map((song) => ({ ...song, bpmDiff: Math.abs(song.bpm - bpm) }))
-      .sort((a, b) => a.bpmDiff - b.bpmDiff) // Sort by closest BPM match
-      .slice(0, 8); // Only show the top 8 matches
+      .map((song) => ({ ...song, bpmDiff: Math.abs(song.bpm - target) }))
+      .sort((a, b) => a.bpmDiff - b.bpmDiff)
+      .slice(0, 8);
   };
 
   const skipSong = useCallback(() => {
@@ -934,6 +939,8 @@ export default function App() {
 
   // 2. LIVE QUEUEING MECHANISM (Triggers when heartRate changes)
   useEffect(() => {
+    const tempoRange = getWorkoutTempoRange(selectedWorkout);
+
     if (!isConnected) {
       setQueue([]);
       setCurrentSong(null);
@@ -943,26 +950,26 @@ export default function App() {
     }
 
     if (!spotifyToken) {
-      const songsForBPM = getMockSongsForBPM(heartRate, selectedWorkout);
+      const songsForWorkout = getMockSongsForWorkout(selectedWorkout);
 
-      if (songsForBPM.length === 0) {
+      if (songsForWorkout.length === 0) {
         setQueue([]);
         setCurrentSong(null);
         setTrackError(
-          'No demo tracks found for this workout/BPM. Connect Spotify for live music.'
+          'No demo tracks found for this workout. Connect Spotify for live music.'
         );
         return;
       }
 
       setTrackError(null);
       setIsFetchingTracks(false);
-      setQueue(songsForBPM);
+      setQueue(songsForWorkout);
       setCurrentSong((prev) => {
-        if (prev && songsForBPM.some((song) => song.id === prev.id)) {
+        if (prev && songsForWorkout.some((song) => song.id === prev.id)) {
           return prev;
         }
         if (isPlaying || !prev) {
-          return songsForBPM[0];
+          return songsForWorkout[0];
         }
         return prev;
       });
@@ -977,7 +984,7 @@ export default function App() {
       setTrackError(null);
       try {
         const tracks = await provider.getRecommendations(
-          heartRate,
+          tempoRange.target,
           selectedWorkout
         );
         if (cancelled) return;
@@ -1015,7 +1022,6 @@ export default function App() {
       cancelled = true;
     };
   }, [
-    heartRate,
     selectedWorkout,
     isConnected,
     spotifyToken,
