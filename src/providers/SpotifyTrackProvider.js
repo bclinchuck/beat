@@ -32,9 +32,21 @@ export default class SpotifyTrackProvider extends TrackProvider {
     return { min, target, max };
   }
 
-  async getRecommendations(bpm, workout) {
+  static tempoWindowFromWorkout(workout) {
+    const defaults = {
+      cardio: { min: 120, target: 140, max: 160 },
+      strength: { min: 95, target: 110, max: 125 },
+      yoga: { min: 60, target: 70, max: 85 },
+      hiit: { min: 150, target: 170, max: 185 },
+      warmup: { min: 80, target: 95, max: 110 },
+      cooldown: { min: 55, target: 65, max: 80 },
+    };
+    return defaults[workout] || defaults.cardio;
+  }
+
+  async getRecommendations(workout) {
     const genre = SpotifyTrackProvider.genreFromWorkout(workout);
-    const { min, target, max } = SpotifyTrackProvider.tempoWindowFromHR(bpm);
+    const { min, target, max } = SpotifyTrackProvider.tempoWindowFromWorkout(workout);
 
     // 1) /v1/recommendations
     const params = new URLSearchParams({

@@ -939,8 +939,6 @@ export default function App() {
 
   // 2. LIVE QUEUEING MECHANISM (Triggers when heartRate changes)
   useEffect(() => {
-    const tempoRange = getWorkoutTempoRange(selectedWorkout);
-
     if (!isConnected) {
       setQueue([]);
       setCurrentSong(null);
@@ -983,10 +981,7 @@ export default function App() {
       setIsFetchingTracks(true);
       setTrackError(null);
       try {
-        const tracks = await provider.getRecommendations(
-          tempoRange.target,
-          selectedWorkout
-        );
+        const tracks = await provider.getRecommendations(selectedWorkout);
         if (cancelled) return;
 
         setQueue(tracks);
