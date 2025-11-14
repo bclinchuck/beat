@@ -45,12 +45,17 @@ export default class SpotifyTrackProvider extends TrackProvider {
    * @returns {Promise<Array>} Array of random track objects
    */
   async getRecommendations(workout) {
+    console.log(`[Spotify] Fetching recommendations for workout: ${workout}`);
+    
     const config = WORKOUT_CONFIG[workout] || WORKOUT_CONFIG.cardio;
     const { genres, tempo } = config;
     const { min, target, max } = tempo;
 
+    console.log(`[Spotify] Tempo range: ${min}-${max} (target: ${target})`);
+
     // Randomly select 1-3 genres for variety
     const selectedGenres = this.#getRandomGenres(genres, 3);
+    console.log(`[Spotify] Selected genres: ${selectedGenres.join(", ")}`);
 
     const params = new URLSearchParams({
       limit: "20",
@@ -63,12 +68,15 @@ export default class SpotifyTrackProvider extends TrackProvider {
       min_danceability: "0.3"
     });
 
+    const url = `https://api.spotify.com/v1/recommendations?${params.toString()}`;
+    console.log(`[Spotify] Request URL: ${url}`);
+
     try {
-      const rec = await this.#fetchJSON(
-        `https://api.spotify.com/v1/recommendations?${params.toString()}`
-      );
+      const rec = await this.#fetchJSON(url);
+      console.log(`[Spotify] Response received:`, rec);
 
       const tracks = Array.isArray(rec?.tracks) ? rec.tracks : [];
+      console.log(`[Spotify] Found ${tracks.length} tracks`);
       
       if (!tracks.length) {
         throw new Error(
@@ -78,27 +86,34 @@ export default class SpotifyTrackProvider extends TrackProvider {
 
       // Get IDs for audio feature lookup
       const ids = tracks.map(t => t.id).filter(Boolean);
+      console.log(`[Spotify] Fetching audio features for ${ids.length} tracks`);
+      
       let featuresById = {};
       
       try {
         featuresById = await this.#fetchAudioFeatures(ids);
+        console.log(`[Spotify] Audio features fetched`, featuresById);
       } catch (error) {
         console.warn("Audio features fetch failed, continuing without BPM data", error);
       }
 
       // Normalize to the shape your app expects
-      return tracks.map(t => ({
+      const result = tracks.map(t => ({
         id: t.id,
         name: t.name,
         artist: (t.artists || []).map(a => a.name).join(", "),
-        bpm: featuresById[t.id]?.tempo ?? target, // fallback to target tempo
-        durationMs: t.duration_ms ?? 210000, // 3.5 min fallback
+        bpm: featuresById[t.id]?.tempo ?? target,
+        durationMs: t.duration_ms ?? 210000,
         workout,
         spotifyUri: t.uri,
         previewUrl: t.preview_url,
         externalUrl: t.external_urls?.spotify
       }));
+
+      console.log(`[Spotify] Returning ${result.length} formatted tracks`);
+      return result;
     } catch (error) {
+      console.error(`[Spotify] Error in getRecommendations:`, error);
       throw error;
     }
   }
@@ -109,7 +124,7 @@ export default class SpotifyTrackProvider extends TrackProvider {
    */
   #getRandomGenres(genres, count) {
     const shuffled = [...genres].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, Math.min(count, 5)); // Spotify allows max 5 seeds
+    return shuffled.slice(0, Math.min(count, 5));
   }
 
   /**
@@ -119,11 +134,11 @@ export default class SpotifyTrackProvider extends TrackProvider {
   async #fetchAudioFeatures(ids) {
     if (!ids.length) return {};
     
-    // API allows up to 100 ids per request
     const chunk = ids.slice(0, 100);
-    const data = await this.#fetchJSON(
-      `https://api.spotify.com/v1/audio-features?ids=${chunk.join(",")}`
-    );
+    const url = `https://api.spotify.com/v1/audio-features?ids=${chunk.join(",")}`;
+    console.log(`[Spotify] Fetching audio features from: ${url}`);
+    
+    const data = await this.#fetchJSON(url);
     
     const out = {};
     for (const f of data?.audio_features ?? []) {
@@ -141,6 +156,8 @@ export default class SpotifyTrackProvider extends TrackProvider {
    * @private
    */
   async #fetchJSON(url) {
+    console.log(`[Spotify] Fetching: ${url}`);
+    
     const resp = await fetch(url, {
       headers: { 
         Authorization: `Bearer ${this.#token}`,
@@ -148,8 +165,12 @@ export default class SpotifyTrackProvider extends TrackProvider {
       }
     });
     
+    console.log(`[Spotify] Response status: ${resp.status}`);
+    
     if (!resp.ok) {
       const msg = await resp.text();
+      console.error(`[Spotify] Error response: ${msg}`);
+      
       let friendlyMsg = msg;
       
       try {
