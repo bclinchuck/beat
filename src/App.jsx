@@ -196,50 +196,52 @@ const createCodeChallenge = async (verifier) => {
 };
 
 export default function App() {
+  // Firebase user (auth) loaded once
   const storedFirebaseUser = useMemo(() => loadStoredFirebaseUser(), []);
+
+  // Spotify auth loaded once
+  const storedAuth = useMemo(() => loadStoredSpotifyAuth(), []);
+
+  // Core app state
   const [heartRate, setHeartRate] = useState(72);
   const [isConnected, setIsConnected] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentSong, setCurrentSong] = useState(null);
   const [queue, setQueue] = useState([]);
-  const [selectedWorkout, setSelectedWorkout] = useState('cardio');
+  const [selectedWorkout, setSelectedWorkout] = useState("cardio");
   const [showSetup, setShowSetup] = useState(false);
-  const [spotifyToken, setSpotifyToken] = useState(() => {
-    const stored = loadStoredSpotifyAuth();
-    return stored?.accessToken ?? null;
-  });
 
-  console.log("stored auth =", loadStoredSpotifyAuth());
+  // Spotify auth state
+  const [spotifyToken, setSpotifyToken] = useState(storedAuth?.accessToken ?? null);
+  const [spotifyRefreshToken, setSpotifyRefreshToken] = useState(
+    storedAuth?.refreshToken ?? null
+  );
+  const [spotifyTokenExpiresAt, setSpotifyTokenExpiresAt] = useState(
+    storedAuth?.expiresAt ?? null
+  );
+
+  console.log("stored auth =", storedAuth);
   console.log("spotifyToken =", spotifyToken);
 
-  const [spotifyRefreshToken, setSpotifyRefreshToken] = useState(() => {
-    const stored = loadStoredSpotifyAuth();
-    return stored?.refreshToken ?? null;
-  });
-  const [spotifyTokenExpiresAt, setSpotifyTokenExpiresAt] = useState(() => {
-    const stored = loadStoredSpotifyAuth();
-    return stored?.expiresAt ?? null;
-  });
+  // Spotify request / error state
   const [spotifyAuthInFlight, setSpotifyAuthInFlight] = useState(false);
   const [spotifyError, setSpotifyError] = useState(null);
   const [isFetchingTracks, setIsFetchingTracks] = useState(false);
   const [trackError, setTrackError] = useState(null);
 
-  // State for music progress
-  const [currentPlaybackTime, setCurrentPlaybackTime] = useState(0); // in milliseconds
+  // Music progress
+  const [currentPlaybackTime, setCurrentPlaybackTime] = useState(0); // ms
 
   // Authentication states
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    () => !!storedFirebaseUser
-  );
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!storedFirebaseUser);
   const [showLogin, setShowLogin] = useState(true);
   const [isSignUp, setIsSignUp] = useState(false);
   const [showForgotUsername, setShowForgotUsername] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showEmailSent, setShowEmailSent] = useState(false);
-  const [emailSentMessage, setEmailSentMessage] = useState('');
+  const [emailSentMessage, setEmailSentMessage] = useState("");
 
-  // Profile and Settings
+  // Profile & settings
   const [userProfile, setUserProfile] = useState(() => storedFirebaseUser);
   const [profilePictureUrl, setProfilePictureUrl] = useState(() => {
     const storedDemoUser = loadDemoAuthUser();
@@ -251,23 +253,21 @@ export default function App() {
   const [showProfileSettings, setShowProfileSettings] = useState(false);
 
   // Form states
-  const [loginIdentifier, setLoginIdentifier] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [signupName, setSignupName] = useState('');
-  const [signupUsername, setSignupUsername] = useState('');
-  const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotError, setForgotError] = useState('');
-  const [signupError, setSignupError] = useState('');
-  const [loginError, setLoginError] = useState('');
+  const [loginIdentifier, setLoginIdentifier] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [signupName, setSignupName] = useState("");
+  const [signupUsername, setSignupUsername] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotError, setForgotError] = useState("");
+  const [signupError, setSignupError] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [profileUpdateSuccess, setProfileUpdateSuccess] = useState(false);
   const [demoUser, setDemoUser] = useState(() => loadDemoAuthUser());
   const isDemoAuthMode = !isFirebaseConfigured;
-  const [hasDemoSession, setHasDemoSession] = useState(() =>
-    loadDemoSessionFlag()
-  );
+  const [hasDemoSession, setHasDemoSession] = useState(() => loadDemoSessionFlag());
   const [isRestoringSession, setIsRestoringSession] = useState(
     () => !isDemoAuthMode && !storedFirebaseUser
   );

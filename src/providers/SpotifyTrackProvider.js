@@ -188,6 +188,7 @@ export default class SpotifyTrackProvider extends TrackProvider {
   }
 
   async #fetchJSON(url) {
+    console.log("[Spotify] Using token prefix:", this.#token?.slice(0, 15));
     const resp = await fetch(url, {
       headers: { Authorization: `Bearer ${this.#token}` }
     });
