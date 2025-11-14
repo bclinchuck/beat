@@ -646,6 +646,7 @@ export default function App() {
   useEffect(() => {
     if (process.env.NODE_ENV === 'test') return;
     if (typeof window === 'undefined' || !isSDKReady || !spotifyToken) return;
+    console.log('Spotify access token:', spotifyToken);
 
     const playerInstance = new window.Spotify.Player({
       name: 'Beat Web Player',
