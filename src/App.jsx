@@ -43,6 +43,9 @@ const SPOTIFY_REDIRECT_URI = DEFAULT_REDIRECT;
 const SPOTIFY_SCOPES = [
   'user-read-private',
   'user-read-email',
+  'streaming',
+  'user-read-playback-state',
+  'user-modify-playback-state',
 ].join(' ');
 // ----------------------------------------------------------------------
 
