@@ -220,8 +220,6 @@ export default function App() {
     storedAuth?.expiresAt ?? null
   );
 
-  console.log("stored auth =", storedAuth);
-  console.log("spotifyToken =", spotifyToken);
 
   // Spotify request / error state
   const [spotifyAuthInFlight, setSpotifyAuthInFlight] = useState(false);
