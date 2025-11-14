@@ -1010,9 +1010,7 @@ export default function App() {
       } catch (error) {
         if (cancelled) return;
         const friendly =
-          error?.message?.startsWith('Spotify 404')
-            ? 'Spotify did not return any recommendations for this workout yet.'
-            : error?.message || 'Unable to load Spotify recommendations.';
+          error?.message || 'Unable to load Spotify tracks right now.';
         setTrackError(friendly);
         setQueue([]);
         setCurrentSong(null);

@@ -4,88 +4,48 @@ import { TrackProvider } from "./TrackProvider.js";
  * Minimal Spotify Web API wrapper for Recommendations + Audio Features.
  * Works with a pasted OAuth token (no backend needed).
  */
-const WORKOUT_SEEDS = {
+const WORKOUT_SEARCH = {
   cardio: {
-    genre: "pop",
-    artists: ["6eUKZXaKkcviH0Ku9w2n3V", "246dkjvS1zLTtiykXe5h60"],
-    tracks: [
-      "6habFhsOp2NvshLv26DqMb", // Lean On
-      "3AJwUDP919kvQ9QcozQPxg", // Titanium
-      "0e7ipj03S05BNilyu5bRzt", // Blinding Lights
-      "4cG7HUWYHBV6R6tHn1gxrl", // POWER
-      "2KSJNEd0SEpKULmZyGq1XK" // Don't Start Now
-    ],
-    tempo: { min: 120, target: 140, max: 160 }
+    query: 'genre:"pop" workout',
+    tempo: { min: 110, target: 135, max: 160 },
+    minEnergy: 0.4,
+    minDanceability: 0.5
   },
   strength: {
-    genre: "rock",
-    artists: ["711MCceyCBcFnzjGY4Q7Un", "4STHEaNw4mPZ2tzheohgXB"],
-    tracks: [
-      "7ouMYWpwJ422jRcDASZB7P", // Thunderstruck
-      "0g5U1Qm9WioNbZrJvPtoEg", // Lose Yourself
-      "5ChkMS8OtdzJeqyybCc9R5", // Seven Nation Army
-      "2I1vu6PNMsYSaeng4lJifV",
-      "4cOdK2wGLETKBW3PvgPWqT" // Never Gonna Give You Up (fun)
-    ],
-    tempo: { min: 95, target: 115, max: 135 }
+    query: 'genre:"rock" gym',
+    tempo: { min: 90, target: 115, max: 135 },
+    minEnergy: 0.45,
+    minDanceability: 0.35
   },
   yoga: {
-    genre: "ambient",
-    artists: ["7EQ0qTo7fWT7DPxmxtSYEc", "4LEiUm1SRbFMgfqnQTwUbQ"],
-    tracks: [
-      "4iV5W9uYEdYUVa79Axb7Rh", // Holocene
-      "6JEK0CvvjDjjMUBFoXShNZ", // Skinny Love
-      "2JhR4tjuc3MIKa8v2JaKkk",
-      "51rXHuKN8Loc4sUlKPODgH",
-      "0kN8xEmgMW9mh7UmDYHlJP"
-    ],
-    tempo: { min: 55, target: 70, max: 85 }
+    query: 'genre:"ambient" calm',
+    tempo: { min: 55, target: 70, max: 85 },
+    minEnergy: 0.25,
+    minDanceability: 0.2
   },
   hiit: {
-    genre: "edm",
-    artists: ["1vCWHaC5f2uS3yhpwWbIA6", "6eUKZXaKkcviH0Ku9w2n3V"],
-    tracks: [
-      "3Zwu2K0Qa5sT6teCCHPShP", // Can't Hold Us
-      "1xznGGDReH1oQq0xzbwXa3", // Closer
-      "2akU3TQbYKZvkOU1T7gRHi", // Believer
-      "2QZ7WLBE8h2y1Y5Fb8RYbU", // The Nights
-      "6fujklziTHa8uoM5OQSfIo" // Turn Down for What
-    ],
-    tempo: { min: 140, target: 165, max: 190 }
+    query: 'genre:"edm" workout',
+    tempo: { min: 135, target: 165, max: 195 },
+    minEnergy: 0.6,
+    minDanceability: 0.45
   },
   warmup: {
-    genre: "dance",
-    artists: ["64KEffDW9EtZ1y2vBYgq8T", "6qqNVTkY8uBg9cP3Jd7DAH"],
-    tracks: [
-      "0tgVpDi06FyKpA1z0VMD4v", // Shape of You
-      "2PpruBYCo4H7WOBJ7Q2EwM", // Get Lucky
-      "6I9VzXrHxO9rA9A5euc8Ak", // Can't Stop the Feeling!
-      "3KkXRkHbMCARz0aVfEt68P",
-      "0E9ZjEAyAwOXZ7wJC0PD33"
-    ],
-    tempo: { min: 90, target: 105, max: 120 }
+    query: 'genre:"dance" warmup',
+    tempo: { min: 80, target: 100, max: 120 },
+    minEnergy: 0.35,
+    minDanceability: 0.5
   },
   cooldown: {
-    genre: "chill",
-    artists: ["6LEeAFiJF8OuPx747e1wxR", "0SqWv0TeT41wOvrj1GWhS6"],
-    tracks: [
-      "4FRW5Nza1Ym91BGV4nFWXI", // Gravity
-      "6w7d9Iv7FsfmK1LJUbLOGg", // Pink + White
-      "0afhq8XCExXpqazXczTSve", // Yellow
-      "5j7nWZyghdZO4y0Xny3Z8S",
-      "6dGnYIeXmHdcikdzNNDMm2"
-    ],
-    tempo: { min: 55, target: 70, max: 90 }
+    query: 'genre:"chill" relax',
+    tempo: { min: 55, target: 70, max: 90 },
+    minEnergy: 0.2,
+    minDanceability: 0.25
   },
   default: {
-    genre: "workout",
-    artists: ["1Xyo4u8uXC1ZmMpatF05PJ"],
-    tracks: [
-      "7GhIk7Il098yCjg4BQjzvb",
-      "0VjIjW4GlUZAMYd2vXMi3b",
-      "2FgHPfRprDaylrSRVf1UlN"
-    ],
-    tempo: { min: 100, target: 120, max: 150 }
+    query: 'genre:"workout"',
+    tempo: { min: 100, target: 120, max: 150 },
+    minEnergy: 0.35,
+    minDanceability: 0.4
   }
 };
 
@@ -97,62 +57,19 @@ export default class SpotifyTrackProvider extends TrackProvider {
     this.#token = token;
   }
 
-  // Map your workout to seed genres (tweak to taste)
   static configForWorkout(workout) {
-    return WORKOUT_SEEDS[workout] || WORKOUT_SEEDS.default;
+    return WORKOUT_SEARCH[workout] || WORKOUT_SEARCH.default;
   }
 
   async getRecommendations(workout) {
-    const {
-      genre,
-      tracks: seedTracks,
-      tempo,
-      artists: seedArtists
-    } =
+    const { query, tempo, minEnergy, minDanceability } =
       SpotifyTrackProvider.configForWorkout(workout);
-    const { min, target, max } = tempo;
+    const { min, max } = tempo;
 
-    // 1) /v1/recommendations
-    const trackSeeds = Array.isArray(seedTracks) ? seedTracks.slice(0, 2) : [];
-    const artistSeeds = Array.isArray(seedArtists) ? seedArtists.slice(0, 2) : [];
+    const searchResults = await this.#searchTracks(query);
+    if (!searchResults.length) return [];
 
-    const params = new URLSearchParams({
-      limit: "20",
-      market: "from_token",
-      target_tempo: String(target),
-      min_tempo: String(min),
-      max_tempo: String(max),
-      min_energy: "0.3",
-      min_danceability: "0.3"
-    });
-
-    if (genre) {
-      params.set("seed_genres", genre);
-    }
-    if (trackSeeds.length) {
-      params.set("seed_tracks", trackSeeds.join(","));
-    }
-    if (artistSeeds.length) {
-      params.set("seed_artists", artistSeeds.join(","));
-    }
-
-    let rec;
-    try {
-      rec = await this.#fetchJSON(
-        `https://api.spotify.com/v1/recommendations?${params.toString()}`
-      );
-    } catch (error) {
-      // Spotify returns 404 when no tracks match; treat as empty results
-      if (typeof error.message === "string" && error.message.startsWith("Spotify 404")) {
-        return [];
-      }
-      throw error;
-    }
-
-    const tracks = Array.isArray(rec?.tracks) ? rec.tracks : [];
-    if (!tracks.length) return [];
-
-    const ids = tracks.map(t => t.id).filter(Boolean);
+    const ids = searchResults.map((t) => t.id).filter(Boolean);
     let featuresById = {};
     try {
       featuresById = await this.#fetchAudioFeatures(ids);
@@ -164,14 +81,46 @@ export default class SpotifyTrackProvider extends TrackProvider {
       }
     }
 
-    // Normalize to the shape your app already uses
-    return tracks.map(t => ({
-      id: t.id,
-      name: t.name,
-      artist: (t.artists || []).map(a => a.name).join(", "),
-      bpm: featuresById[t.id]?.tempo ?? null,
-      durationMs: t.duration_ms ?? null
+    const filtered = searchResults.filter((track) => {
+      const metrics = featuresById[track.id];
+      if (!metrics) return false;
+      const tempoOk =
+        typeof metrics.tempo === "number" &&
+        metrics.tempo >= min &&
+        metrics.tempo <= max;
+      const energyOk =
+        typeof metrics.energy === "number"
+          ? metrics.energy >= (minEnergy ?? 0.3)
+          : true;
+      const danceOk =
+        typeof metrics.danceability === "number"
+          ? metrics.danceability >= (minDanceability ?? 0.3)
+          : true;
+      return tempoOk && energyOk && danceOk;
+    });
+
+    const listToUse = filtered.length ? filtered : searchResults;
+
+    return listToUse.slice(0, 20).map((track) => ({
+      id: track.id,
+      name: track.name,
+      artist: (track.artists || []).map((a) => a.name).join(", "),
+      bpm: featuresById[track.id]?.tempo ?? null,
+      durationMs: track.duration_ms ?? null
     }));
+  }
+
+  async #searchTracks(query) {
+    const params = new URLSearchParams({
+      q: query,
+      type: "track",
+      limit: "50",
+      market: "from_token"
+    });
+    const data = await this.#fetchJSON(
+      `https://api.spotify.com/v1/search?${params.toString()}`
+    );
+    return data?.tracks?.items ?? [];
   }
 
   async #fetchAudioFeatures(ids) {
@@ -182,7 +131,13 @@ export default class SpotifyTrackProvider extends TrackProvider {
     );
     const out = {};
     for (const f of data?.audio_features ?? []) {
-      if (f && f.id) out[f.id] = { tempo: f.tempo ?? null };
+      if (f && f.id) {
+        out[f.id] = {
+          tempo: f.tempo ?? null,
+          energy: f.energy ?? null,
+          danceability: f.danceability ?? null
+        };
+      }
     }
     return out;
   }
