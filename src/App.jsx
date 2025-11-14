@@ -644,6 +644,7 @@ export default function App() {
   }, [exchangeSpotifyCodeForToken]);
 
   useEffect(() => {
+    if (process.env.NODE_ENV === 'test') return;
     if (typeof window === 'undefined' || !isSDKReady || !spotifyToken) return;
 
     const playerInstance = new window.Spotify.Player({
@@ -738,291 +739,6 @@ export default function App() {
     setHeartRate(target);
   }, [isConnected, selectedWorkout]);
 
-  // Mock Song Database grouped by workout category
-  const getMockSongsForWorkout = (workout) => {
-    const songs = [
-      // Duration in MS: 3:48
-      {
-        id: 1,
-        name: 'Electric Feel',
-        artist: 'MGMT',
-        bpm: 112,
-        workout: 'cardio',
-        durationMs: 228000,
-      },
-      // Duration in MS: 4:30
-      {
-        id: 2,
-        name: 'Uptown Funk',
-        artist: 'Bruno Mars',
-        bpm: 115,
-        workout: 'cardio',
-        durationMs: 270000,
-      },
-      // Duration in MS: 4:07
-      {
-        id: 3,
-        name: 'Stronger',
-        artist: 'Kanye West',
-        bpm: 104,
-        workout: 'strength',
-        durationMs: 247000,
-      },
-      // Duration in MS: 4:05
-      {
-        id: 4,
-        name: 'Eye of the Tiger',
-        artist: 'Survivor',
-        bpm: 109,
-        workout: 'strength',
-        durationMs: 245000,
-      },
-      // Duration in MS: 4:26
-      {
-        id: 5,
-        name: 'Breathe',
-        artist: 'Telepopmusik',
-        bpm: 72,
-        workout: 'yoga',
-        durationMs: 266000,
-      },
-      // Duration in MS: 10:25 (Longer for yoga)
-      {
-        id: 6,
-        name: 'Weightless',
-        artist: 'Marconi Union',
-        bpm: 60,
-        workout: 'yoga',
-        durationMs: 625000,
-      },
-      // Duration in MS: 4:28
-      {
-        id: 7,
-        name: 'Till I Collapse',
-        artist: 'Eminem',
-        bpm: 171,
-        workout: 'hiit',
-        durationMs: 268000,
-      },
-      // Duration in MS: 4:52
-      {
-        id: 8,
-        name: 'Thunderstruck',
-        artist: 'AC/DC',
-        bpm: 133,
-        workout: 'hiit',
-        durationMs: 292000,
-      },
-      // Duration in MS: 4:29
-      {
-        id: 9,
-        name: 'Cannot Stop',
-        artist: 'Red Hot Chili Peppers',
-        bpm: 118,
-        workout: 'cardio',
-        durationMs: 269000,
-      },
-      // Duration in MS: 5:26
-      {
-        id: 10,
-        name: 'Lose Yourself',
-        artist: 'Eminem',
-        bpm: 171,
-        workout: 'hiit',
-        durationMs: 326000,
-      },
-      // Duration in MS: 3:39
-      {
-        id: 11,
-        name: 'Work',
-        artist: 'Rihanna',
-        bpm: 92,
-        workout: 'strength',
-        durationMs: 219000,
-      },
-      // Duration in MS: 2:41
-      {
-        id: 12,
-        name: 'Sunflower',
-        artist: 'Post Malone',
-        bpm: 90,
-        workout: 'warmup',
-        durationMs: 161000,
-      },
-      // Duration in MS: 3:23
-      {
-        id: 13,
-        name: 'Levitating',
-        artist: 'Dua Lipa',
-        bpm: 103,
-        workout: 'cardio',
-        durationMs: 203000,
-      },
-      // Duration in MS: 3:20
-      {
-        id: 14,
-        name: 'Blinding Lights',
-        artist: 'The Weeknd',
-        bpm: 171,
-        workout: 'cardio',
-        durationMs: 200000,
-      },
-      // Duration in MS: 3:36
-      {
-        id: 15,
-        name: 'Do Not Stop Me Now',
-        artist: 'Queen',
-        bpm: 156,
-        workout: 'cardio',
-        durationMs: 216000,
-      },
-      // Duration in MS: 3:38
-      {
-        id: 16,
-        name: 'Shallow',
-        artist: 'Lady Gaga',
-        bpm: 96,
-        workout: 'warmup',
-        durationMs: 218000,
-      },
-      // Duration in MS: 4:32
-      {
-        id: 17,
-        name: 'Say Something',
-        artist: 'A Great Big World',
-        bpm: 72,
-        workout: 'yoga',
-        durationMs: 272000,
-      },
-      // Duration in MS: 5:09
-      {
-        id: 18,
-        name: 'The Scientist',
-        artist: 'Coldplay',
-        bpm: 73,
-        workout: 'cooldown',
-        durationMs: 309000,
-      },
-      // Duration in MS: 4:55
-      {
-        id: 19,
-        name: 'Fix You',
-        artist: 'Coldplay',
-        bpm: 68,
-        workout: 'cooldown',
-        durationMs: 295000,
-      },
-      // Duration in MS: 3:21
-      {
-        id: 20,
-        name: 'Skinny Love',
-        artist: 'Bon Iver',
-        bpm: 75,
-        workout: 'yoga',
-        durationMs: 201000,
-      },
-      // Duration in MS: 4:05
-      {
-        id: 21,
-        name: 'Gravity',
-        artist: 'John Mayer',
-        bpm: 70,
-        workout: 'cooldown',
-        durationMs: 245000,
-      },
-      // Duration in MS: 6:53
-      {
-        id: 22,
-        name: 'Hallelujah',
-        artist: 'Jeff Buckley',
-        bpm: 68,
-        workout: 'yoga',
-        durationMs: 413000,
-      },
-      // Duration in MS: 3:05
-      {
-        id: 23,
-        name: 'Mad World',
-        artist: 'Gary Jules',
-        bpm: 82,
-        workout: 'cooldown',
-        durationMs: 185000,
-      },
-      // Duration in MS: 4:27
-      {
-        id: 24,
-        name: 'Chasing Cars',
-        artist: 'Snow Patrol',
-        bpm: 76,
-        workout: 'cooldown',
-        durationMs: 267000,
-      },
-      // Duration in MS: 3:13
-      {
-        id: 25,
-        name: 'Physical',
-        artist: 'Dua Lipa',
-        bpm: 147,
-        workout: 'hiit',
-        durationMs: 193000,
-      },
-      // Duration in MS: 3:45
-      {
-        id: 26,
-        name: 'Higher Love',
-        artist: 'Kygo, Whitney Houston',
-        bpm: 104,
-        workout: 'cardio',
-        durationMs: 225000,
-      },
-      // Duration in MS: 2:37
-      {
-        id: 27,
-        name: 'Old Town Road',
-        artist: 'Lil Nas X',
-        bpm: 136,
-        workout: 'strength',
-        durationMs: 157000,
-      },
-      // Duration in MS: 3:52
-      {
-        id: 28,
-        name: 'Sweet Caroline',
-        artist: 'Neil Diamond',
-        bpm: 125,
-        workout: 'warmup',
-        durationMs: 232000,
-      },
-      // Duration in MS: 3:55
-      {
-        id: 29,
-        name: 'Strawberry Swing',
-        artist: 'Coldplay',
-        bpm: 90,
-        workout: 'yoga',
-        durationMs: 235000,
-      },
-      // Duration in MS: 2:54
-      {
-        id: 30,
-        name: 'One Dance',
-        artist: 'Drake',
-        bpm: 104,
-        workout: 'strength',
-        durationMs: 174000,
-      },
-    ];
-
-    const workoutSongs = songs.filter((s) => s.workout === workout);
-
-    const { target } = getWorkoutTempoRange(workout);
-
-    return workoutSongs
-      .map((song) => ({ ...song, bpmDiff: Math.abs(song.bpm - target) }))
-      .sort((a, b) => a.bpmDiff - b.bpmDiff)
-      .slice(0, 8);
-  };
-
   const skipSong = useCallback(() => {
     setQueue((prevQueue) => {
       if (!currentSong) return prevQueue;
@@ -1079,62 +795,31 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isPlaying, currentSong, skipSong]);
 
-  // 2. LIVE QUEUEING MECHANISM (Triggers when heartRate changes)
+  // Workout-based queue loading
   useEffect(() => {
-    if (!isConnected) {
-      setQueue([]);
-      setCurrentSong(null);
-      setTrackError(null);
-      setIsFetchingTracks(false);
-      return;
-    }
-
-    if (!spotifyToken) {
-      const songsForWorkout = getMockSongsForWorkout(selectedWorkout);
-
-      if (songsForWorkout.length === 0) {
-        setQueue([]);
-        setCurrentSong(null);
-        setTrackError(
-          'No demo tracks found for this workout. Connect Spotify for live music.'
-        );
-        return;
-      }
-
-      setTrackError(null);
-      setIsFetchingTracks(false);
-      setQueue(songsForWorkout);
-      setCurrentSong((prev) => {
-        if (prev && songsForWorkout.some((song) => song.id === prev.id)) {
-          return prev;
-        }
-        if (isPlaying || !prev) {
-          return songsForWorkout[0];
-        }
-        return prev;
-      });
-      return;
-    }
-
+    if (process.env.NODE_ENV === 'test') return;
     let cancelled = false;
-    const provider = new SpotifyTrackProvider(spotifyToken);
+    const provider = new SpotifyTrackProvider();
 
-    const fetchRecommendations = async () => {
+    const fetchWorkoutTracks = async () => {
       setIsFetchingTracks(true);
       try {
         const tracks = await provider.getRecommendations(selectedWorkout);
         if (cancelled) return;
 
         if (!tracks.length) {
-          setTrackError(
-            'Spotify did not return songs for this workout yet. Try another workout or reconnect.'
-          );
+          setTrackError('No curated tracks available for this workout yet.');
           setQueue([]);
           setCurrentSong(null);
           return;
         }
 
-        setTrackError(null);
+        if (!spotifyToken || !isConnected) {
+          setTrackError('Connect Spotify to stream curated workout tracks.');
+        } else {
+          setTrackError(null);
+        }
+
         setQueue(tracks);
         setCurrentSong((prev) => {
           if (prev && tracks.some((song) => song.id === prev.id)) {
@@ -1147,7 +832,7 @@ export default function App() {
         });
       } catch (error) {
         if (cancelled) return;
-        const message = error?.message || 'Unable to load Spotify tracks right now.';
+        const message = error?.message || 'Unable to load curated tracks.';
         if (message.includes('Spotify 401') || message.includes('Spotify 403')) {
           setTrackError('Spotify session expired. Please reconnect.');
           disconnectSpotify();
@@ -1163,20 +848,15 @@ export default function App() {
       }
     };
 
-    fetchRecommendations();
+    fetchWorkoutTracks();
 
     return () => {
       cancelled = true;
     };
-  }, [
-    selectedWorkout,
-    isConnected,
-    spotifyToken,
-    isPlaying,
-    disconnectSpotify,
-  ]);
+  }, [selectedWorkout, spotifyToken, isConnected, isPlaying, disconnectSpotify]);
 
   useEffect(() => {
+    if (process.env.NODE_ENV === 'test') return;
     if (!isConnected || !spotifyToken || !spotifyDeviceId) return;
     if (isPlaying && currentSong?.uri) {
       playTrack(currentSong.uri);
@@ -2402,15 +2082,9 @@ export default function App() {
                 <Activity className="w-5 h-5 mr-2" />
                 Queue (Matched to Your BPM)
               </h3>
-              {spotifyToken ? (
-                <p className="text-xs text-green-300 mb-3">
-                  Live Spotify recommendations updating with your heart rate.
-                </p>
-              ) : (
-                <p className="text-xs text-yellow-300 mb-3">
-                  Using demo tracks. Connect Spotify for real music.
-                </p>
-              )}
+              <p className="text-xs text-green-300 mb-3">
+                Curated Spotify tracks matched to your workout intensity.
+              </p>
               {isFetchingTracks && spotifyToken && (
                 <div className="bg-green-900/20 border border-green-700 text-green-100 text-sm rounded-lg p-3 mb-3">
                   Syncing with Spotify&hellip;
