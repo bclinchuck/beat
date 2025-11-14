@@ -208,6 +208,10 @@ export default function App() {
     const stored = loadStoredSpotifyAuth();
     return stored?.accessToken ?? null;
   });
+
+  console.log("stored auth =", loadStoredSpotifyAuth());
+  console.log("spotifyToken =", spotifyToken);
+
   const [spotifyRefreshToken, setSpotifyRefreshToken] = useState(() => {
     const stored = loadStoredSpotifyAuth();
     return stored?.refreshToken ?? null;
