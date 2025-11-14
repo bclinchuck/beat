@@ -3,6 +3,7 @@ import { TrackProvider } from "./TrackProvider.js";
 /**
  * Spotify Web API wrapper for Recommendations + Audio Features.
  * Fetches random songs based on workout type, genres, and tempo ranges.
+ * NO hardcoded seed tracks or artists - just genres!
  */
 const WORKOUT_CONFIG = {
   cardio: {
@@ -41,6 +42,7 @@ export default class SpotifyTrackProvider extends TrackProvider {
 
   /**
    * Get random Spotify recommendations for the given workout
+   * Uses ONLY genres, no seed tracks/artists
    * @param {string} workout - one of: cardio|strength|yoga|hiit|warmup|cooldown
    * @returns {Promise<Array>} Array of random track objects
    */
@@ -57,9 +59,10 @@ export default class SpotifyTrackProvider extends TrackProvider {
     const selectedGenres = this.#getRandomGenres(genres, 3);
     console.log(`[Spotify] Selected genres: ${selectedGenres.join(", ")}`);
 
+    // Build params with ONLY genres (no seed_tracks or seed_artists)
     const params = new URLSearchParams({
       limit: "20",
-      market: "from_token",
+      market: "US",
       seed_genres: selectedGenres.join(","),
       target_tempo: String(target),
       min_tempo: String(min),
@@ -124,7 +127,7 @@ export default class SpotifyTrackProvider extends TrackProvider {
    */
   #getRandomGenres(genres, count) {
     const shuffled = [...genres].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, Math.min(count, 5));
+    return shuffled.slice(0, Math.min(count, 5)); // Spotify max 5 seeds
   }
 
   /**
