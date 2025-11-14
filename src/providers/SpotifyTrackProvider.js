@@ -4,7 +4,7 @@ import { TrackProvider } from "./TrackProvider.js";
  * Spotify Web API wrapper for Recommendations + Audio Features.
  * Fetches random songs based on workout type, genres, and tempo ranges.
  * NO hardcoded seed tracks or artists - just genres!
- */
+ */ 
 const WORKOUT_CONFIG = {
   cardio: {
     genres: ["pop", "dance", "electronic", "hip-hop", "workout"],
