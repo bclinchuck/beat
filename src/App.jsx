@@ -43,6 +43,9 @@ const SPOTIFY_REDIRECT_URI = DEFAULT_REDIRECT;
 const SPOTIFY_SCOPES = [
   'user-read-private',
   'user-read-email',
+  'streaming',
+  'user-read-playback-state',
+  'user-modify-playback-state',
 ].join(' ');
 // ----------------------------------------------------------------------
 
@@ -210,6 +213,10 @@ export default function App() {
   const [queue, setQueue] = useState([]);
   const [selectedWorkout, setSelectedWorkout] = useState("cardio");
   const [showSetup, setShowSetup] = useState(false);
+  const [spotifyDeviceId, setSpotifyDeviceId] = useState(null);
+  const [spotifyPlayer, setSpotifyPlayer] = useState(null);
+  const [isSDKReady, setIsSDKReady] = useState(false);
+  const [playbackError, setPlaybackError] = useState(null);
 
   // Spotify auth state
   const [spotifyToken, setSpotifyToken] = useState(storedAuth?.accessToken ?? null);
@@ -274,6 +281,27 @@ export default function App() {
     if (!isDemoAuthMode) return;
     persistDemoAuthUser(demoUser);
   }, [demoUser, isDemoAuthMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.Spotify) {
+      setIsSDKReady(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://sdk.scdn.co/spotify-player.js';
+    script.async = true;
+    document.body.appendChild(script);
+    window.onSpotifyWebPlaybackSDKReady = () => {
+      setIsSDKReady(true);
+    };
+    return () => {
+      window.onSpotifyWebPlaybackSDKReady = undefined;
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    };
+  }, []);
 
   const ensureDemoUser = useCallback(() => {
     if (demoUser) return demoUser;
@@ -354,12 +382,18 @@ export default function App() {
   }, [isDemoAuthMode, auth, db]);
 
   const disconnectSpotify = useCallback(() => {
+    if (spotifyPlayer) {
+      spotifyPlayer.disconnect();
+    }
     setSpotifyToken(null);
     setSpotifyRefreshToken(null);
     setSpotifyTokenExpiresAt(null);
     setSpotifyError(null);
     setTrackError(null);
-  }, []);
+    setSpotifyDeviceId(null);
+    setSpotifyPlayer(null);
+    setPlaybackError(null);
+  }, [spotifyPlayer]);
 
   const refreshSpotifyAccessToken = useCallback(
     async (refreshToken) => {
@@ -406,6 +440,71 @@ export default function App() {
     },
     [disconnectSpotify]
   );
+
+  const transferPlayback = useCallback(
+    async (deviceId) => {
+      if (!spotifyToken || !deviceId) return;
+      try {
+        await fetch('https://api.spotify.com/v1/me/player', {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${spotifyToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            device_ids: [deviceId],
+            play: false,
+          }),
+        });
+        setPlaybackError(null);
+      } catch (error) {
+        console.error('Error transferring playback:', error);
+        setPlaybackError('Unable to control Spotify playback. Reconnect and try again.');
+      }
+    },
+    [spotifyToken]
+  );
+
+  const playTrack = useCallback(
+    async (trackUri) => {
+      if (!spotifyToken || !spotifyDeviceId || !trackUri) return;
+      try {
+        await fetch(
+          `https://api.spotify.com/v1/me/player/play?device_id=${spotifyDeviceId}`,
+          {
+            method: 'PUT',
+            headers: {
+              Authorization: `Bearer ${spotifyToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ uris: [trackUri] }),
+          }
+        );
+        setPlaybackError(null);
+      } catch (error) {
+        console.error('Error starting Spotify playback:', error);
+        setPlaybackError('Unable to start playback. Try reconnecting Spotify.');
+      }
+    },
+    [spotifyToken, spotifyDeviceId]
+  );
+
+  const pausePlayback = useCallback(async () => {
+    if (!spotifyToken || !spotifyDeviceId) return;
+    try {
+      await fetch(
+        `https://api.spotify.com/v1/me/player/pause?device_id=${spotifyDeviceId}`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${spotifyToken}`,
+          },
+        }
+      );
+    } catch (error) {
+      console.error('Error pausing Spotify playback:', error);
+    }
+  }, [spotifyToken, spotifyDeviceId]);
 
   const exchangeSpotifyCodeForToken = useCallback(
     async (authorizationCode) => {
@@ -543,6 +642,47 @@ export default function App() {
     }${window.location.hash}`;
     window.history.replaceState({}, document.title, newUrl);
   }, [exchangeSpotifyCodeForToken]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isSDKReady || !spotifyToken) return;
+
+    const playerInstance = new window.Spotify.Player({
+      name: 'Beat Web Player',
+      getOAuthToken: (cb) => cb(spotifyToken),
+      volume: 0.8,
+    });
+
+    playerInstance.addListener('ready', ({ device_id }) => {
+      setSpotifyDeviceId(device_id);
+      transferPlayback(device_id);
+      setPlaybackError(null);
+    });
+
+    playerInstance.addListener('not_ready', ({ device_id }) => {
+      if (spotifyDeviceId === device_id) {
+        setSpotifyDeviceId(null);
+      }
+    });
+
+    playerInstance.addListener('initialization_error', ({ message }) => {
+      setPlaybackError(message);
+    });
+    playerInstance.addListener('authentication_error', ({ message }) => {
+      setPlaybackError(message);
+    });
+    playerInstance.addListener('account_error', ({ message }) => {
+      setPlaybackError(message);
+    });
+
+    playerInstance.connect();
+    setSpotifyPlayer(playerInstance);
+
+    return () => {
+      playerInstance.disconnect();
+      setSpotifyPlayer(null);
+      setSpotifyDeviceId(null);
+    };
+  }, [isSDKReady, spotifyToken, transferPlayback, spotifyDeviceId]);
 
 
 
@@ -1036,6 +1176,20 @@ export default function App() {
     disconnectSpotify,
   ]);
 
+  useEffect(() => {
+    if (!isConnected || !spotifyToken || !spotifyDeviceId) return;
+    if (isPlaying && currentSong?.uri) {
+      playTrack(currentSong.uri);
+    }
+  }, [
+    currentSong,
+    isPlaying,
+    spotifyDeviceId,
+    spotifyToken,
+    isConnected,
+    playTrack,
+  ]);
+
   /**
    * Handler to allow user to scrub/jump to a new position in the song.
    * @param {React.MouseEvent<HTMLDivElement>} e The mouse event from clicking the progress bar.
@@ -1477,9 +1631,16 @@ export default function App() {
     const newPlayingState = !isPlaying;
     setIsPlaying(newPlayingState);
 
-    // If starting playback and no song is loaded, load the first queue song
-    if (newPlayingState && !currentSong && queue.length > 0) {
-      setCurrentSong(queue[0]);
+    if (newPlayingState) {
+      if (!currentSong && queue.length > 0) {
+        setCurrentSong(queue[0]);
+        return;
+      }
+      if (currentSong?.uri) {
+        playTrack(currentSong.uri);
+      }
+    } else {
+      pausePlayback();
     }
   };
 
@@ -2258,6 +2419,11 @@ export default function App() {
               {trackError && (
                 <div className="bg-red-900/30 border border-red-700 text-red-100 text-sm rounded-lg p-3 mb-3">
                   {trackError}
+                </div>
+              )}
+              {playbackError && (
+                <div className="bg-yellow-900/30 border border-yellow-700 text-yellow-100 text-sm rounded-lg p-3 mb-3">
+                  {playbackError}
                 </div>
               )}
               <div className="space-y-2 max-h-64 overflow-y-auto">
