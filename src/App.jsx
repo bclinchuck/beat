@@ -666,12 +666,15 @@ export default function App() {
     });
 
     playerInstance.addListener('initialization_error', ({ message }) => {
+      console.error('Spotify SDK init error:', message);
       setPlaybackError(message);
     });
     playerInstance.addListener('authentication_error', ({ message }) => {
+      console.error('Spotify SDK auth error:', message);
       setPlaybackError(message);
     });
     playerInstance.addListener('account_error', ({ message }) => {
+      console.error('Spotify SDK account error:', message);
       setPlaybackError(message);
     });
 
