@@ -74,11 +74,11 @@ export default class SpotifyTrackProvider extends TrackProvider {
     try {
       featuresById = await this.#fetchAudioFeatures(ids);
     } catch (error) {
-      if (typeof error.message === "string" && error.message.startsWith("Spotify 404")) {
-        featuresById = {};
-      } else {
+      if (error?.status === 401 || error?.status === 403) {
         throw error;
       }
+      console.warn("Spotify audio-features unavailable, using unfiltered list.", error);
+      featuresById = {};
     }
 
     const filtered = searchResults.filter((track) => {
@@ -143,6 +143,9 @@ export default class SpotifyTrackProvider extends TrackProvider {
   }
 
   async #fetchJSON(url) {
+    if (!this.#token) {
+      throw new Error("Spotify token missing. Reconnect to continue.");
+    }
     const resp = await fetch(url, {
       headers: { Authorization: `Bearer ${this.#token}` }
     });
@@ -158,7 +161,9 @@ export default class SpotifyTrackProvider extends TrackProvider {
       } catch {
         // ignore JSON parse issues
       }
-      throw new Error(`Spotify ${resp.status}: ${friendlyMsg || msg}`);
+      const error = new Error(`Spotify ${resp.status}: ${friendlyMsg || msg}`);
+      error.status = resp.status;
+      throw error;
     }
     return resp.json();
   }

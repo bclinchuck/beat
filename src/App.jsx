@@ -1007,9 +1007,13 @@ export default function App() {
         });
       } catch (error) {
         if (cancelled) return;
-        const friendly =
-          error?.message || 'Unable to load Spotify tracks right now.';
-        setTrackError(friendly);
+        const message = error?.message || 'Unable to load Spotify tracks right now.';
+        if (message.includes('Spotify 401') || message.includes('Spotify 403')) {
+          setTrackError('Spotify session expired. Please reconnect.');
+          disconnectSpotify();
+        } else {
+          setTrackError(message);
+        }
         setQueue([]);
         setCurrentSong(null);
       } finally {
@@ -1029,6 +1033,7 @@ export default function App() {
     isConnected,
     spotifyToken,
     isPlaying,
+    disconnectSpotify,
   ]);
 
   /**
