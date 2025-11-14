@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Heart,
   Music,
@@ -217,6 +217,7 @@ export default function App() {
   const [spotifyPlayer, setSpotifyPlayer] = useState(null);
   const [isSDKReady, setIsSDKReady] = useState(false);
   const [playbackError, setPlaybackError] = useState(null);
+  const hasTransferredPlayback = useRef(false);
 
   // Spotify auth state
   const [spotifyToken, setSpotifyToken] = useState(storedAuth?.accessToken ?? null);
@@ -393,6 +394,7 @@ export default function App() {
     setSpotifyDeviceId(null);
     setSpotifyPlayer(null);
     setPlaybackError(null);
+    hasTransferredPlayback.current = false;
   }, [spotifyPlayer]);
 
   const refreshSpotifyAccessToken = useCallback(
@@ -440,6 +442,9 @@ export default function App() {
     },
     [disconnectSpotify]
   );
+  useEffect(() => {
+    hasTransferredPlayback.current = false;
+  }, [spotifyToken]);
 
   const transferPlayback = useCallback(
     async (deviceId) => {
@@ -656,7 +661,10 @@ export default function App() {
 
     playerInstance.addListener('ready', ({ device_id }) => {
       setSpotifyDeviceId(device_id);
-      transferPlayback(device_id);
+      if (!hasTransferredPlayback.current) {
+        transferPlayback(device_id);
+        hasTransferredPlayback.current = true;
+      }
       setPlaybackError(null);
     });
 
@@ -687,7 +695,7 @@ export default function App() {
       setSpotifyPlayer(null);
       setSpotifyDeviceId(null);
     };
-  }, [isSDKReady, spotifyToken, transferPlayback, spotifyDeviceId]);
+  }, [isSDKReady, spotifyToken, transferPlayback]);
 
 
 
