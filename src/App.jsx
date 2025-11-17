@@ -1996,9 +1996,9 @@ export default function App() {
             <div className="flex justify-between items-start mb-6">
               <div>
                 <h2 className="text-xl font-semibold text-white mb-1">
-                  Current Heart Rate
+                  Current Workout
                 </h2>
-                <p className="text-gray-400 text-sm">Live monitoring active</p>
+                <p className="text-gray-400 text-sm">Matching music to your current range</p>
               </div>
               <button
                 onClick={() => setShowSetup(true)}
@@ -2020,14 +2020,10 @@ export default function App() {
                 </div>
               </div>
               <div className="ml-8">
-                <div
-                  className={`text-6xl font-bold ${getHeartRateColor(
-                    heartRate
-                  )}`}
-                >
-                  {heartRate}
+                <div className="text-4xl font-bold text-white capitalize">
+                  {selectedWorkout}
                 </div>
-                <div className="text-gray-400 text-xl">BPM</div>
+                <div className="text-gray-400 text-sm">Selected workout</div>
               </div>
             </div>
 
