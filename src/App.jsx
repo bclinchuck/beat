@@ -473,7 +473,7 @@ export default function App() {
   );
 
   const playTrack = useCallback(
-    async (trackUri) => {
+    async (trackUri, positionMs = undefined) => {
       if (!spotifyToken || !spotifyDeviceId || !trackUri) return;
       try {
         await fetch(
@@ -484,7 +484,10 @@ export default function App() {
               Authorization: `Bearer ${spotifyToken}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ uris: [trackUri] }),
+            body: JSON.stringify({
+              uris: [trackUri],
+              ...(typeof positionMs === 'number' ? { position_ms: positionMs } : {}),
+            }),
           }
         );
         setPlaybackError(null);
@@ -1353,7 +1356,7 @@ export default function App() {
         return;
       }
       if (currentSong?.uri) {
-        playTrack(currentSong.uri);
+        playTrack(currentSong.uri, currentPlaybackTime);
       }
     } else {
       pausePlayback();
@@ -2118,7 +2121,7 @@ export default function App() {
                 <Activity className="w-5 h-5 mr-2" />
                 Queue (Matched to your workout BPM range)
               </h3>
-              <p className="text-xs mb-3">
+              <p className="text-xs mb-3 text-white">
                 {spotifyToken
                   ? 'Streaming Spotify tracks matched to your workout.'
                   : 'Demo queue active. Connect Spotify to stream.'}
