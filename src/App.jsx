@@ -649,9 +649,14 @@ export default function App() {
   }, [exchangeSpotifyCodeForToken]);
 
   useEffect(() => {
+    if (process.env.NODE_ENV !== 'test' && spotifyToken) {
+      console.log('Spotify access token:', spotifyToken);
+    }
+  }, [spotifyToken]);
+
+  useEffect(() => {
     if (process.env.NODE_ENV === 'test') return;
     if (typeof window === 'undefined' || !isSDKReady || !spotifyToken) return;
-    console.log('Spotify access token:', spotifyToken);
 
     const playerInstance = new window.Spotify.Player({
       name: 'Beat Web Player',
@@ -710,7 +715,7 @@ export default function App() {
       setSpotifyPlayer(null);
       setSpotifyDeviceId(null);
     };
-  }, [isSDKReady, spotifyToken, transferPlayback, queue]);
+  }, [isSDKReady, spotifyToken, transferPlayback]);
 
 
 
