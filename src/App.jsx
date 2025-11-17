@@ -1369,6 +1369,10 @@ export default function App() {
     if (hr < 170) return 'text-orange-500';
     return 'text-red-500';
   };
+  const selectedWorkoutDetails = useMemo(
+    () => workoutTypes.find((w) => w.id === selectedWorkout),
+    [selectedWorkout]
+  );
 
   // Profile Settings Modal Component (omitted for brevity, unchanged)
   const ProfileSettingsModal = () => {
@@ -2021,9 +2025,11 @@ export default function App() {
               </div>
               <div className="ml-8">
                 <div className="text-4xl font-bold text-white capitalize">
-                  {selectedWorkout}
+                  {selectedWorkoutDetails?.name || selectedWorkout}
                 </div>
-                <div className="text-gray-400 text-sm">Selected workout</div>
+                <div className="text-gray-400 text-sm">
+                  {selectedWorkoutDetails?.range || 'Selected workout'}
+                </div>
               </div>
             </div>
 
