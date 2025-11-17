@@ -219,6 +219,7 @@ export default function App() {
   const [playbackError, setPlaybackError] = useState(null);
   const hasTransferredPlayback = useRef(false);
   const lastPlayedTrackId = useRef(null);
+  const lastPlayTs = useRef(0);
 
   // Spotify auth state
   const [spotifyToken, setSpotifyToken] = useState(storedAuth?.accessToken ?? null);
@@ -693,6 +694,20 @@ export default function App() {
       setPlaybackError(message);
     });
 
+    playerInstance.addListener('player_state_changed', (state) => {
+      const track = state?.track_window?.current_track;
+      if (!track) return;
+      lastPlayedTrackId.current = track.id;
+      setCurrentSong((prev) => ({
+        id: track.id,
+        name: track.name,
+        artist: (track.artists || []).map((a) => a.name).join(', '),
+        durationMs: track.duration_ms,
+        uri: track.uri,
+        bpm: prev?.bpm ?? null,
+      }));
+    });
+
     playerInstance.connect();
     setSpotifyPlayer(playerInstance);
 
@@ -877,9 +892,16 @@ export default function App() {
     if (process.env.NODE_ENV === 'test') return;
     if (!isConnected || !spotifyToken || !spotifyDeviceId) return;
     if (!isPlaying || !currentSong?.uri) return;
-    if (lastPlayedTrackId.current === currentSong.id) return;
+    const now = Date.now();
+    if (
+      lastPlayedTrackId.current === currentSong.id &&
+      now - lastPlayTs.current < 2000
+    ) {
+      return;
+    }
     playTrack(currentSong.uri);
     lastPlayedTrackId.current = currentSong.id;
+    lastPlayTs.current = now;
   }, [
     currentSong,
     isPlaying,
@@ -2104,7 +2126,7 @@ export default function App() {
               <p className="text-xs mb-3">
                 {spotifyToken
                   ? 'Streaming Spotify tracks matched to your workout.'
-                  : 'Curated tracks are ready. Connect Spotify to stream them.'}
+                  : 'Demo queue active. Connect Spotify to stream.'}
               </p>
               {isFetchingTracks && spotifyToken && (
                 <div className="bg-green-900/20 border border-green-700 text-green-100 text-sm rounded-lg p-3 mb-3">
