@@ -2099,7 +2099,7 @@ export default function App() {
             <div>
               <h3 className="text-white font-semibold mb-3 flex items-center">
                 <Activity className="w-5 h-5 mr-2" />
-                Queue (Matched to Your BPM)
+                Queue (Matched to your workout BPM range)
               </h3>
               <p className="text-xs mb-3">
                 {spotifyToken
@@ -2225,8 +2225,8 @@ export default function App() {
                 How it works
               </h3>
               <p className="text-gray-400 text-xs leading-relaxed">
-                As your heart rate changes during your workout, the app
-                automatically queues songs that match your current BPM, keeping
+                Based on your workout, your heart rate is in a specific zone.
+                Beat will automatically queue songs to match this BPM, keeping 
                 you in the zone.
               </p>
             </div>
