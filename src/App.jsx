@@ -2147,60 +2147,25 @@ export default function App() {
                 {queue.map((song, idx) => (
                   <div
                     key={song.id}
-                    className={`rounded-lg p-3 flex items-center justify-between transition-all ${
-                      currentSong?.id === song.id
-                        ? 'bg-green-600 shadow-lg'
-                        : 'bg-gray-700'
-                    }`}
+                    className="rounded-lg p-3 flex items-center justify-between transition-all bg-gray-700"
                   >
                     <div className="flex items-center space-x-3 flex-1">
                       <div className="flex items-center justify-center w-8">
-                        {currentSong?.id === song.id ? (
-                          <div className="flex space-x-0.5">
-                            <div className="w-1 bg-white h-4 animate-pulse"></div>
-                            <div
-                              className="w-1 bg-white h-3 animate-pulse"
-                              style={{ animationDelay: '0.2s' }}
-                            ></div>
-                            <div
-                              className="w-1 bg-white h-5 animate-pulse"
-                              style={{ animationDelay: '0.4s' }}
-                            ></div>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 text-sm">
-                            {idx + 1}
-                          </span>
-                        )}
+                        <span className="text-gray-400 text-sm">{idx + 1}</span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate text-white">
                           {song.name}
                         </p>
-                        <p
-                          className={`text-xs truncate ${
-                            currentSong?.id === song.id
-                              ? 'text-green-100'
-                              : 'text-gray-400'
-                          }`}
-                        >
+                        <p className="text-xs truncate text-gray-400">
                           {song.artist}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <span
-                        className={`text-sm font-semibold ${
-                          currentSong?.id === song.id
-                            ? 'text-white'
-                            : 'text-green-400'
-                        }`}
-                      >
+                      <span className="text-sm font-semibold text-green-400">
                         {formatBpm(song.bpm)}
                       </span>
-                      {currentSong?.id === song.id && (
-                        <Music className="w-4 h-4 text-white animate-pulse" />
-                      )}
                     </div>
                   </div>
                 ))}
