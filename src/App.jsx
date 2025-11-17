@@ -219,7 +219,6 @@ export default function App() {
   const [playbackError, setPlaybackError] = useState(null);
   const hasTransferredPlayback = useRef(false);
   const lastPlayedTrackId = useRef(null);
-  const lastPlayTs = useRef(0);
 
   // Spotify auth state
   const [spotifyToken, setSpotifyToken] = useState(storedAuth?.accessToken ?? null);
@@ -694,21 +693,6 @@ export default function App() {
       setPlaybackError(message);
     });
 
-    playerInstance.addListener('player_state_changed', (state) => {
-      const track = state?.track_window?.current_track;
-      if (!track) return;
-      const bpmFromQueue =
-        queue.find((q) => q.id === track.id)?.bpm ?? null;
-      setCurrentSong({
-        id: track.id,
-        name: track.name,
-        artist: (track.artists || []).map((a) => a.name).join(', '),
-        durationMs: track.duration_ms,
-        uri: track.uri,
-        bpm: bpmFromQueue,
-      });
-    });
-
     playerInstance.connect();
     setSpotifyPlayer(playerInstance);
 
@@ -893,16 +877,9 @@ export default function App() {
     if (process.env.NODE_ENV === 'test') return;
     if (!isConnected || !spotifyToken || !spotifyDeviceId) return;
     if (!isPlaying || !currentSong?.uri) return;
-    const now = Date.now();
-    if (
-      lastPlayedTrackId.current === currentSong.id &&
-      now - lastPlayTs.current < 2000
-    ) {
-      return;
-    }
+    if (lastPlayedTrackId.current === currentSong.id) return;
     playTrack(currentSong.uri);
     lastPlayedTrackId.current = currentSong.id;
-    lastPlayTs.current = now;
   }, [
     currentSong,
     isPlaying,
