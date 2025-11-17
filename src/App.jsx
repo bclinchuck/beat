@@ -687,6 +687,21 @@ export default function App() {
       setPlaybackError(message);
     });
 
+    playerInstance.addListener('player_state_changed', (state) => {
+      const track = state?.track_window?.current_track;
+      if (!track) return;
+      const bpmFromQueue =
+        queue.find((q) => q.id === track.id)?.bpm ?? null;
+      setCurrentSong({
+        id: track.id,
+        name: track.name,
+        artist: (track.artists || []).map((a) => a.name).join(', '),
+        durationMs: track.duration_ms,
+        uri: track.uri,
+        bpm: bpmFromQueue,
+      });
+    });
+
     playerInstance.connect();
     setSpotifyPlayer(playerInstance);
 
@@ -695,7 +710,7 @@ export default function App() {
       setSpotifyPlayer(null);
       setSpotifyDeviceId(null);
     };
-  }, [isSDKReady, spotifyToken, transferPlayback]);
+  }, [isSDKReady, spotifyToken, transferPlayback, queue]);
 
 
 
@@ -2094,8 +2109,10 @@ export default function App() {
                 <Activity className="w-5 h-5 mr-2" />
                 Queue (Matched to Your BPM)
               </h3>
-              <p className="text-xs text-green-300 mb-3">
-                Curated Spotify tracks matched to your workout intensity.
+              <p className="text-xs mb-3">
+                {spotifyToken
+                  ? 'Streaming Spotify tracks matched to your workout.'
+                  : 'Curated tracks are ready. Connect Spotify to stream them.'}
               </p>
               {isFetchingTracks && spotifyToken && (
                 <div className="bg-green-900/20 border border-green-700 text-green-100 text-sm rounded-lg p-3 mb-3">
