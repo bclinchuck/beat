@@ -773,24 +773,19 @@ export default function App() {
   }, [isConnected, selectedWorkout]);
 
   const skipSong = useCallback(() => {
-    setQueue((prevQueue) => {
-      if (!currentSong) return prevQueue;
-
-      const nextIndex = prevQueue.findIndex((s) => s.id === currentSong.id) + 1;
-
-      if (nextIndex < prevQueue.length) {
-        setCurrentSong(prevQueue[nextIndex]);
-        return prevQueue;
-      } else if (prevQueue.length > 0) {
-        // Loop back to the first song if end of list is reached
-        setCurrentSong(prevQueue[0]);
-        return prevQueue;
-      } else {
-        setCurrentSong(null);
-        return prevQueue;
-      }
-    });
-  }, [currentSong]);
+    if (!queue.length) return;
+    const currentIndex = currentSong
+      ? queue.findIndex((s) => s.id === currentSong.id)
+      : -1;
+    const nextIndex = (currentIndex + 1) % queue.length;
+    const nextSong = queue[nextIndex];
+    setCurrentSong(nextSong);
+    setIsPlaying(true);
+    lastPlayedTrackId.current = nextSong.id;
+    if (spotifyToken && nextSong?.uri) {
+      playTrack(nextSong.uri);
+    }
+  }, [queue, currentSong, playTrack, spotifyToken]);
 
   // Reset playback time when a new song is set
   useEffect(() => {
@@ -1850,7 +1845,7 @@ export default function App() {
                 </div>
               </div>
               <h1 className="text-3xl font-bold text-white mb-2">Beat Setup</h1>
-              <p className="text-gray-400">
+              <p className="text-white">
                 Connect your Spotify account to sync your music
               </p>
             </div>
