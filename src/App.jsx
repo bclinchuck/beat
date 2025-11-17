@@ -218,6 +218,8 @@ export default function App() {
   const [isSDKReady, setIsSDKReady] = useState(false);
   const [playbackError, setPlaybackError] = useState(null);
   const hasTransferredPlayback = useRef(false);
+  const lastPlayedTrackId = useRef(null);
+  const lastPlayTs = useRef(0);
 
   // Spotify auth state
   const [spotifyToken, setSpotifyToken] = useState(storedAuth?.accessToken ?? null);
@@ -890,9 +892,17 @@ export default function App() {
   useEffect(() => {
     if (process.env.NODE_ENV === 'test') return;
     if (!isConnected || !spotifyToken || !spotifyDeviceId) return;
-    if (isPlaying && currentSong?.uri) {
-      playTrack(currentSong.uri);
+    if (!isPlaying || !currentSong?.uri) return;
+    const now = Date.now();
+    if (
+      lastPlayedTrackId.current === currentSong.id &&
+      now - lastPlayTs.current < 2000
+    ) {
+      return;
     }
+    playTrack(currentSong.uri);
+    lastPlayedTrackId.current = currentSong.id;
+    lastPlayTs.current = now;
   }, [
     currentSong,
     isPlaying,
