@@ -42,6 +42,22 @@ const WORKOUT_TRACKS = {
       uri: 'spotify:track:0g5U1Qm9WioNbZrJvPtoEg',
       durationMs: 326000,
     },
+    {
+      id: '6habFhsOp2NvshLv26DqMb',
+      name: 'Lean On',
+      artist: 'Major Lazer, DJ Snake',
+      bpm: 140,
+      uri: 'spotify:track:6habFhsOp2NvshLv26DqMb',
+      durationMs: 176000,
+    },
+    {
+      id: '2PpruBYCo4H7WOBJ7Q2EwM',
+      name: 'Get Lucky',
+      artist: 'Daft Punk',
+      bpm: 113,
+      uri: 'spotify:track:2PpruBYCo4H7WOBJ7Q2EwM',
+      durationMs: 248000,
+    },
   ],
   hiit: [
     {
@@ -60,6 +76,22 @@ const WORKOUT_TRACKS = {
       uri: 'spotify:track:2akU3TQbYKZvkOU1T7gRHi',
       durationMs: 204000,
     },
+    {
+      id: '7ouMYWpwJ422jRcDASZB7P',
+      name: 'Thunderstruck',
+      artist: 'AC/DC',
+      bpm: 134,
+      uri: 'spotify:track:7ouMYWpwJ422jRcDASZB7P',
+      durationMs: 292000,
+    },
+    {
+      id: '6habFhsOp2NvshLv26DqMb',
+      name: 'Lean On',
+      artist: 'Major Lazer, DJ Snake',
+      bpm: 140,
+      uri: 'spotify:track:6habFhsOp2NvshLv26DqMb',
+      durationMs: 176000,
+    },
   ],
   warmup: [
     {
@@ -69,6 +101,22 @@ const WORKOUT_TRACKS = {
       bpm: 113,
       uri: 'spotify:track:3KkXRkHbMCARz0aVfEt68P',
       durationMs: 158000,
+    },
+    {
+      id: '2PpruBYCo4H7WOBJ7Q2EwM',
+      name: 'Get Lucky',
+      artist: 'Daft Punk',
+      bpm: 113,
+      uri: 'spotify:track:2PpruBYCo4H7WOBJ7Q2EwM',
+      durationMs: 248000,
+    },
+    {
+      id: '0tgVpDi06FyKpA1z0VMD4v',
+      name: 'Shape of You',
+      artist: 'Ed Sheeran',
+      bpm: 96,
+      uri: 'spotify:track:0tgVpDi06FyKpA1z0VMD4v',
+      durationMs: 233000,
     },
   ],
   yoga: [
@@ -80,6 +128,22 @@ const WORKOUT_TRACKS = {
       uri: 'spotify:track:4iV5W9uYEdYUVa79Axb7Rh',
       durationMs: 345000,
     },
+    {
+      id: '4FRW5Nza1Ym91BGV4nFWXI',
+      name: 'Gravity',
+      artist: 'John Mayer',
+      bpm: 73,
+      uri: 'spotify:track:4FRW5Nza1Ym91BGV4nFWXI',
+      durationMs: 245000,
+    },
+    {
+      id: '3KkXRkHbMCARz0aVfEt68P',
+      name: 'Sunflower',
+      artist: 'Post Malone',
+      bpm: 113,
+      uri: 'spotify:track:3KkXRkHbMCARz0aVfEt68P',
+      durationMs: 158000,
+    },
   ],
   cooldown: [
     {
@@ -89,6 +153,22 @@ const WORKOUT_TRACKS = {
       bpm: 73,
       uri: 'spotify:track:4FRW5Nza1Ym91BGV4nFWXI',
       durationMs: 245000,
+    },
+    {
+      id: '4iV5W9uYEdYUVa79Axb7Rh',
+      name: 'Holocene',
+      artist: 'Bon Iver',
+      bpm: 74,
+      uri: 'spotify:track:4iV5W9uYEdYUVa79Axb7Rh',
+      durationMs: 345000,
+    },
+    {
+      id: '3KkXRkHbMCARz0aVfEt68P',
+      name: 'Sunflower',
+      artist: 'Post Malone',
+      bpm: 113,
+      uri: 'spotify:track:3KkXRkHbMCARz0aVfEt68P',
+      durationMs: 158000,
     },
   ],
 };
