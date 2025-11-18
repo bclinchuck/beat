@@ -835,7 +835,10 @@ export default function App() {
     const fetchWorkoutTracks = async () => {
       setIsFetchingTracks(true);
       try {
-        const tracks = await provider.getRecommendations(selectedWorkout);
+        const tracks = await provider.getRecommendations(
+          selectedWorkout,
+          spotifyToken
+        );
         if (cancelled) return;
 
         if (!tracks.length) {
