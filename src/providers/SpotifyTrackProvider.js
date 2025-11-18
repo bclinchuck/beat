@@ -41,6 +41,11 @@ export default class SpotifyTrackProvider extends TrackProvider {
     return genres[workout] || genres.cardio;
   }
 
+  constructor() {
+    super();
+    this.recommendationCache = new Map(); // key: workout + token
+  }
+
   async getRecommendations(workout, accessToken = null) {
     const config = SpotifyTrackProvider.configForWorkout(workout);
     const curated = Array.isArray(config) ? config : config?.tracks || [];
@@ -61,6 +66,12 @@ export default class SpotifyTrackProvider extends TrackProvider {
     // If no token, just return the curated list.
     if (!accessToken) return curatedMapped;
 
+    // Simple cache to avoid re-hitting the API on every rerender.
+    const cacheKey = `${workout}:${accessToken}`;
+    if (this.recommendationCache.has(cacheKey)) {
+      return this.recommendationCache.get(cacheKey);
+    }
+
     try {
       const seeds = curated
         .map((t) => t.id)
@@ -73,6 +84,7 @@ export default class SpotifyTrackProvider extends TrackProvider {
           limit: '20',
           min_tempo: String(min),
           max_tempo: String(max),
+          market: 'from_token',
           ...extra,
         });
 
@@ -86,37 +98,38 @@ export default class SpotifyTrackProvider extends TrackProvider {
           }
         );
         if (!resp.ok) {
-          throw new Error(`Spotify recommendations failed: ${resp.status}`);
+          const err = new Error(`Spotify recommendations failed: ${resp.status}`);
+          err.status = resp.status;
+          throw err;
         }
         return resp.json();
       };
 
       let data = null;
 
-      // Try with track seeds first (preferred).
+      // Try with track seeds first (preferred). On any error, fall back to genre seeds.
+      const genreFallback = async () => {
+        const genres = SpotifyTrackProvider.genreSeeds(workout)
+          .filter(Boolean)
+          .slice(0, 5);
+        if (!genres.length) return null;
+        return fetchRecommendations(
+          buildParams({ seed_genres: genres.join(',') })
+        );
+      };
+
       if (seeds.length) {
         try {
           data = await fetchRecommendations(
             buildParams({ seed_tracks: seeds.join(',') })
           );
         } catch (err) {
-          // If a seed track is not available in the user's market,
-          // retry with genre seeds to avoid a hard failure.
-          const genres = SpotifyTrackProvider.genreSeeds(workout)
-            .filter(Boolean)
-            .slice(0, 5);
-          if (!genres.length) throw err;
-          data = await fetchRecommendations(
-            buildParams({ seed_genres: genres.join(',') })
-          );
+          data = await genreFallback();
         }
-      } else {
-        const genres = SpotifyTrackProvider.genreSeeds(workout)
-          .filter(Boolean)
-          .slice(0, 5);
-        data = await fetchRecommendations(
-          buildParams({ seed_genres: genres.join(',') })
-        );
+      }
+
+      if (!data) {
+        data = await genreFallback();
       }
 
       const recommended = (data?.tracks || []).map((track) => ({
@@ -137,9 +150,10 @@ export default class SpotifyTrackProvider extends TrackProvider {
         return true;
       });
 
+      this.recommendationCache.set(cacheKey, combined);
       return combined;
     } catch (error) {
-      console.warn('Falling back to curated tracks due to Spotify error:', error);
+      console.warn('Falling back to curated tracks due to Spotify error:', error?.message || error);
       return curatedMapped;
     }
   }
