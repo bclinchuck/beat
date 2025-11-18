@@ -47,6 +47,8 @@ build/Release
 
 # Dependency directories
 node_modules/
+node_modules/.cache/
+build/
 
 # Optional npm cache directory
 .npm
@@ -68,4 +70,3 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
-
