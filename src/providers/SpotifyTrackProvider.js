@@ -6,10 +6,6 @@ import WORKOUT_TRACKS from "../data/workoutTracks.js";
  * Works with a pasted OAuth token (no backend needed).
  */
 export default class SpotifyTrackProvider extends TrackProvider {
-  constructor() {
-    super();
-  }
-
   /**
    * Target tempo ranges per workout to guide Spotify recommendations.
    */
