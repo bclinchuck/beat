@@ -29,6 +29,18 @@ export default class SpotifyTrackProvider extends TrackProvider {
     return WORKOUT_TRACKS[workout] || WORKOUT_TRACKS.default;
   }
 
+  static genreSeeds(workout) {
+    const genres = {
+      cardio: ['dance', 'edm', 'work-out'],
+      strength: ['rock', 'hip-hop', 'work-out'],
+      yoga: ['chill', 'acoustic', 'indie'],
+      hiit: ['edm', 'dance', 'work-out'],
+      warmup: ['pop', 'dance', 'indie'],
+      cooldown: ['chill', 'acoustic', 'jazz'],
+    };
+    return genres[workout] || genres.cardio;
+  }
+
   async getRecommendations(workout, accessToken = null) {
     const config = SpotifyTrackProvider.configForWorkout(workout);
     const curated = Array.isArray(config) ? config : config?.tracks || [];
@@ -49,33 +61,64 @@ export default class SpotifyTrackProvider extends TrackProvider {
     // If no token, just return the curated list.
     if (!accessToken) return curatedMapped;
 
-    const seeds = curated
-      .map((t) => t.id)
-      .filter(Boolean)
-      .slice(0, 5);
-    const { min, max } = SpotifyTrackProvider.tempoRange(workout);
-    const params = new URLSearchParams({
-      limit: '20',
-      seed_tracks: seeds.join(','),
-      min_tempo: String(min),
-      max_tempo: String(max),
-    });
-
     try {
-      const resp = await fetch(
-        `https://api.spotify.com/v1/recommendations?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
+      const seeds = curated
+        .map((t) => t.id)
+        .filter(Boolean)
+        .slice(0, 5);
+      const { min, max } = SpotifyTrackProvider.tempoRange(workout);
 
-      if (!resp.ok) {
-        throw new Error(`Spotify recommendations failed: ${resp.status}`);
+      const buildParams = (extra) =>
+        new URLSearchParams({
+          limit: '20',
+          min_tempo: String(min),
+          max_tempo: String(max),
+          ...extra,
+        });
+
+      const fetchRecommendations = async (searchParams) => {
+        const resp = await fetch(
+          `https://api.spotify.com/v1/recommendations?${searchParams.toString()}`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+        if (!resp.ok) {
+          throw new Error(`Spotify recommendations failed: ${resp.status}`);
+        }
+        return resp.json();
+      };
+
+      let data = null;
+
+      // Try with track seeds first (preferred).
+      if (seeds.length) {
+        try {
+          data = await fetchRecommendations(
+            buildParams({ seed_tracks: seeds.join(',') })
+          );
+        } catch (err) {
+          // If a seed track is not available in the user's market,
+          // retry with genre seeds to avoid a hard failure.
+          const genres = SpotifyTrackProvider.genreSeeds(workout)
+            .filter(Boolean)
+            .slice(0, 5);
+          if (!genres.length) throw err;
+          data = await fetchRecommendations(
+            buildParams({ seed_genres: genres.join(',') })
+          );
+        }
+      } else {
+        const genres = SpotifyTrackProvider.genreSeeds(workout)
+          .filter(Boolean)
+          .slice(0, 5);
+        data = await fetchRecommendations(
+          buildParams({ seed_genres: genres.join(',') })
+        );
       }
 
-      const data = await resp.json();
       const recommended = (data?.tracks || []).map((track) => ({
         id: track.id,
         name: track.name,
