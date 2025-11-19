@@ -62,7 +62,7 @@ export default class SpotifyTrackProvider extends TrackProvider {
     // Build params with ONLY genres (no seed_tracks or seed_artists)
     const params = new URLSearchParams({
       limit: "20",
-      market: "US",
+      market: "from_token",
       seed_genres: selectedGenres.join(","),
       target_tempo: String(target),
       min_tempo: String(min),
@@ -71,54 +71,60 @@ export default class SpotifyTrackProvider extends TrackProvider {
       min_danceability: "0.3"
     });
 
-    const url = `https://api.spotify.com/v1/recommendations?${params.toString()}`;
-    console.log(`[Spotify] Request URL: ${url}`);
+    const recUrl = `https://api.spotify.com/v1/recommendations?${params.toString()}`;
+    console.log(`[Spotify] Request URL: ${recUrl}`);
 
+    let tracks = [];
+
+    // First try recommendations
     try {
-      const rec = await this.#fetchJSON(url);
+      const rec = await this.#fetchJSON(recUrl);
       console.log(`[Spotify] Response received:`, rec);
-
-      const tracks = Array.isArray(rec?.tracks) ? rec.tracks : [];
-      console.log(`[Spotify] Found ${tracks.length} tracks`);
-      
-      if (!tracks.length) {
-        throw new Error(
-          `Spotify 404: No recommendations found for ${workout}`
-        );
-      }
-
-      // Get IDs for audio feature lookup
-      const ids = tracks.map(t => t.id).filter(Boolean);
-      console.log(`[Spotify] Fetching audio features for ${ids.length} tracks`);
-      
-      let featuresById = {};
-      
-      try {
-        featuresById = await this.#fetchAudioFeatures(ids);
-        console.log(`[Spotify] Audio features fetched`, featuresById);
-      } catch (error) {
-        console.warn("Audio features fetch failed, continuing without BPM data", error);
-      }
-
-      // Normalize to the shape your app expects
-      const result = tracks.map(t => ({
-        id: t.id,
-        name: t.name,
-        artist: (t.artists || []).map(a => a.name).join(", "),
-        bpm: featuresById[t.id]?.tempo ?? target,
-        durationMs: t.duration_ms ?? 210000,
-        workout,
-        spotifyUri: t.uri,
-        previewUrl: t.preview_url,
-        externalUrl: t.external_urls?.spotify
-      }));
-
-      console.log(`[Spotify] Returning ${result.length} formatted tracks`);
-      return result;
+      tracks = Array.isArray(rec?.tracks) ? rec.tracks : [];
     } catch (error) {
-      console.error(`[Spotify] Error in getRecommendations:`, error);
-      throw error;
+      console.warn("Recommendations failed, falling back to search", error);
     }
+
+    // Fallback: search API if recommendations are empty or failed
+    if (!tracks.length) {
+      tracks = await this.#searchByGenres(selectedGenres);
+      console.log(`[Spotify] Search fallback returned ${tracks.length} tracks`);
+    }
+
+    if (!tracks.length) {
+      throw new Error(
+        `Spotify 404: No recommendations found for ${workout}`
+      );
+    }
+
+    // Get IDs for audio feature lookup
+    const ids = tracks.map(t => t.id).filter(Boolean);
+    console.log(`[Spotify] Fetching audio features for ${ids.length} tracks`);
+    
+    let featuresById = {};
+    
+    try {
+      featuresById = await this.#fetchAudioFeatures(ids);
+      console.log(`[Spotify] Audio features fetched`, featuresById);
+    } catch (error) {
+      console.warn("Audio features fetch failed, continuing without BPM data", error);
+    }
+
+    // Normalize to the shape your app expects
+    const result = tracks.map(t => ({
+      id: t.id,
+      name: t.name,
+      artist: (t.artists || []).map(a => a.name).join(", "),
+      bpm: featuresById[t.id]?.tempo ?? target,
+      durationMs: t.duration_ms ?? 210000,
+      workout,
+      spotifyUri: t.uri,
+      previewUrl: t.preview_url,
+      externalUrl: t.external_urls?.spotify
+    }));
+
+    console.log(`[Spotify] Returning ${result.length} formatted tracks`);
+    return result;
   }
 
   /**
@@ -128,6 +134,31 @@ export default class SpotifyTrackProvider extends TrackProvider {
   #getRandomGenres(genres, count) {
     const shuffled = [...genres].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, Math.min(count, 5)); // Spotify max 5 seeds
+  }
+
+  /**
+   * Fallback: search tracks by genres if recommendations 404.
+   * @private
+   */
+  async #searchByGenres(genres) {
+    if (!genres.length) return [];
+    const query = genres.map((g) => `genre:${g}`).join(" OR ");
+    const params = new URLSearchParams({
+      q: query,
+      type: "track",
+      market: "from_token",
+      limit: "20",
+    });
+    const url = `https://api.spotify.com/v1/search?${params.toString()}`;
+    console.log(`[Spotify] Search fallback URL: ${url}`);
+
+    try {
+      const data = await this.#fetchJSON(url);
+      return data?.tracks?.items || [];
+    } catch (error) {
+      console.warn("Search fallback failed", error);
+      return [];
+    }
   }
 
   /**
