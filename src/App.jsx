@@ -830,15 +830,12 @@ export default function App() {
   useEffect(() => {
     if (process.env.NODE_ENV === 'test') return;
     let cancelled = false;
-    const provider = new SpotifyTrackProvider();
+    const provider = new SpotifyTrackProvider(spotifyToken);
 
     const fetchWorkoutTracks = async () => {
       setIsFetchingTracks(true);
       try {
-        const tracks = await provider.getRecommendations(
-          selectedWorkout,
-          spotifyToken
-        );
+        const tracks = await provider.getRecommendations(selectedWorkout);
         if (cancelled) return;
 
         if (!tracks.length) {
