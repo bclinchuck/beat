@@ -1,35 +1,35 @@
 import { TrackProvider } from "./TrackProvider.js";
+import WORKOUT_TRACKS from "../data/workoutTracks.js";
 
 /**
- * Spotify Web API wrapper for Recommendations + Audio Features.
- * Fetches random songs based on workout type, genres, and tempo ranges.
- * NO hardcoded seed tracks or artists - just genres!
- */ 
+ * Lightweight Spotify helper: uses Search API + curated seeds.
+ * Avoids /recommendations and /audio-features (endpoints that flake/404).
+ */
 const WORKOUT_CONFIG = {
   cardio: {
-    genres: ["pop", "dance", "electronic", "hip-hop", "workout"],
-    tempo: { min: 120, target: 140, max: 160 }
+    genres: ["dance", "workout", "edm", "pop", "hip-hop"],
+    targetBpm: 140,
   },
   strength: {
-    genres: ["rock", "metal", "hip-hop", "workout", "hard-rock"],
-    tempo: { min: 95, target: 115, max: 135 }
+    genres: ["rock", "metal", "hip-hop", "workout"],
+    targetBpm: 110,
   },
   yoga: {
-    genres: ["ambient", "chill", "classical", "indie", "acoustic"],
-    tempo: { min: 55, target: 70, max: 85 }
+    genres: ["chill", "ambient", "acoustic", "indie"],
+    targetBpm: 70,
   },
   hiit: {
-    genres: ["electronic", "dance", "edm", "hip-hop", "metal"],
-    tempo: { min: 140, target: 165, max: 190 }
+    genres: ["edm", "dance", "electronic", "hip-hop"],
+    targetBpm: 165,
   },
   warmup: {
-    genres: ["pop", "indie", "electronic", "dance", "alternative"],
-    tempo: { min: 90, target: 105, max: 120 }
+    genres: ["pop", "dance", "indie", "electronic"],
+    targetBpm: 100,
   },
   cooldown: {
-    genres: ["ambient", "chill", "acoustic", "indie", "classical"],
-    tempo: { min: 55, target: 70, max: 90 }
-  }
+    genres: ["chill", "acoustic", "indie", "jazz"],
+    targetBpm: 70,
+  },
 };
 
 export default class SpotifyTrackProvider extends TrackProvider {
@@ -40,107 +40,48 @@ export default class SpotifyTrackProvider extends TrackProvider {
     this.#token = token;
   }
 
-  /**
-   * Get random Spotify recommendations for the given workout
-   * Uses ONLY genres, no seed tracks/artists
-   * @param {string} workout - one of: cardio|strength|yoga|hiit|warmup|cooldown
-   * @returns {Promise<Array>} Array of random track objects
-   */
+  static configForWorkout(workout) {
+    return WORKOUT_CONFIG[workout] || WORKOUT_CONFIG.cardio;
+  }
+
   async getRecommendations(workout) {
-    console.log(`[Spotify] Fetching recommendations for workout: ${workout}`);
-    
-    const config = WORKOUT_CONFIG[workout] || WORKOUT_CONFIG.cardio;
-    const { genres, tempo } = config;
-    const { min, target, max } = tempo;
+    console.log(`[Spotify] Fetching tracks for workout: ${workout}`);
+    const config = SpotifyTrackProvider.configForWorkout(workout);
+    const targetBpm = config.targetBpm;
+    const curated = WORKOUT_TRACKS[workout] || WORKOUT_TRACKS.cardio || [];
 
-    console.log(`[Spotify] Tempo range: ${min}-${max} (target: ${target})`);
-
-    // Randomly select 1-3 genres for variety
-    const selectedGenres = this.#getRandomGenres(genres, 3);
-    console.log(`[Spotify] Selected genres: ${selectedGenres.join(", ")}`);
-
-    // Build params with ONLY genres (no seed_tracks or seed_artists)
-    const params = new URLSearchParams({
-      limit: "20",
-      market: "from_token",
-      seed_genres: selectedGenres.join(","),
-      target_tempo: String(target),
-      min_tempo: String(min),
-      max_tempo: String(max),
-      min_energy: "0.3",
-      min_danceability: "0.3"
-    });
-
-    const recUrl = `https://api.spotify.com/v1/recommendations?${params.toString()}`;
-    console.log(`[Spotify] Request URL: ${recUrl}`);
-
-    let tracks = [];
-
-    // First try recommendations
-    try {
-      const rec = await this.#fetchJSON(recUrl);
-      console.log(`[Spotify] Response received:`, rec);
-      tracks = Array.isArray(rec?.tracks) ? rec.tracks : [];
-    } catch (error) {
-      console.warn("Recommendations failed, falling back to search", error);
+    // If no token or token invalid, just return curated list (for demo/offline).
+    if (!this.#token) {
+      console.log("[Spotify] No token; using curated tracks only");
+      return this.#mapTracks(curated, targetBpm);
     }
 
-    // Fallback: search API if recommendations are empty or failed
-    if (!tracks.length) {
-      tracks = await this.#searchByGenres(selectedGenres);
-      console.log(`[Spotify] Search fallback returned ${tracks.length} tracks`);
+    // Try search-based fetch by genres
+    const searchTracks = await this.#searchByGenres(config.genres);
+    if (searchTracks.length) {
+      return this.#mapTracks(searchTracks, targetBpm);
     }
 
-    if (!tracks.length) {
-      throw new Error(
-        `Spotify 404: No recommendations found for ${workout}`
-      );
-    }
+    // Fallback to curated list if search failed/empty
+    console.warn("[Spotify] Search returned no tracks; using curated list");
+    return this.#mapTracks(curated, targetBpm);
+  }
 
-    // Get IDs for audio feature lookup
-    const ids = tracks.map(t => t.id).filter(Boolean);
-    console.log(`[Spotify] Fetching audio features for ${ids.length} tracks`);
-    
-    let featuresById = {};
-    
-    try {
-      featuresById = await this.#fetchAudioFeatures(ids);
-      console.log(`[Spotify] Audio features fetched`, featuresById);
-    } catch (error) {
-      console.warn("Audio features fetch failed, continuing without BPM data", error);
-    }
-
-    // Normalize to the shape your app expects
-    const result = tracks.map(t => ({
+  #mapTracks(tracks, fallbackBpm) {
+    return (tracks || []).map((t) => ({
       id: t.id,
       name: t.name,
-      artist: (t.artists || []).map(a => a.name).join(", "),
-      bpm: featuresById[t.id]?.tempo ?? target,
-      durationMs: t.duration_ms ?? 210000,
-      workout,
-      spotifyUri: t.uri,
+      artist: (t.artists || []).map((a) => a.name).join(", "),
+      bpm: fallbackBpm ?? null,
+      durationMs: t.duration_ms ?? t.durationMs ?? 210000,
+      uri: t.uri || t.spotifyUri,
+      spotifyUri: t.uri || t.spotifyUri,
       previewUrl: t.preview_url,
-      externalUrl: t.external_urls?.spotify
-    }));
-
-    console.log(`[Spotify] Returning ${result.length} formatted tracks`);
-    return result;
+      externalUrl: t.external_urls?.spotify,
+    })).filter((t) => t.id && t.uri);
   }
 
-  /**
-   * Randomly select genres from the available list
-   * @private
-   */
-  #getRandomGenres(genres, count) {
-    const shuffled = [...genres].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, Math.min(count, 5)); // Spotify max 5 seeds
-  }
-
-  /**
-   * Fallback: search tracks by genres if recommendations 404.
-   * @private
-   */
-  async #searchByGenres(genres) {
+  async #searchByGenres(genres = []) {
     if (!genres.length) return [];
     const query = genres.map((g) => `genre:${g}`).join(" OR ");
     const params = new URLSearchParams({
@@ -150,75 +91,34 @@ export default class SpotifyTrackProvider extends TrackProvider {
       limit: "20",
     });
     const url = `https://api.spotify.com/v1/search?${params.toString()}`;
-    console.log(`[Spotify] Search fallback URL: ${url}`);
+    console.log(`[Spotify] Search URL: ${url}`);
 
-    try {
-      const data = await this.#fetchJSON(url);
-      return data?.tracks?.items || [];
-    } catch (error) {
-      console.warn("Search fallback failed", error);
-      return [];
-    }
-  }
-
-  /**
-   * Fetch audio features (including tempo/BPM) for tracks
-   * @private
-   */
-  async #fetchAudioFeatures(ids) {
-    if (!ids.length) return {};
-    
-    const chunk = ids.slice(0, 100);
-    const url = `https://api.spotify.com/v1/audio-features?ids=${chunk.join(",")}`;
-    console.log(`[Spotify] Fetching audio features from: ${url}`);
-    
     const data = await this.#fetchJSON(url);
-    
-    const out = {};
-    for (const f of data?.audio_features ?? []) {
-      if (f && f.id) {
-        out[f.id] = { 
-          tempo: typeof f.tempo === 'number' ? f.tempo : null 
-        };
-      }
-    }
-    return out;
+    return data?.tracks?.items || [];
   }
 
-  /**
-   * Fetch JSON from Spotify API with authorization
-   * @private
-   */
   async #fetchJSON(url) {
     console.log(`[Spotify] Fetching: ${url}`);
-    
     const resp = await fetch(url, {
-      headers: { 
+      headers: {
         Authorization: `Bearer ${this.#token}`,
-        'Content-Type': 'application/json'
-      }
+        "Content-Type": "application/json",
+      },
     });
-    
+
     console.log(`[Spotify] Response status: ${resp.status}`);
-    
+
     if (!resp.ok) {
       const msg = await resp.text();
       console.error(`[Spotify] Error response: ${msg}`);
-      
-      let friendlyMsg = msg;
-      
+      let friendly = msg;
       try {
-        const parsed = JSON.parse(msg);
-        if (parsed?.error?.message) {
-          friendlyMsg = parsed.error.message;
-        }
-      } catch {
-        // Ignore JSON parse errors
-      }
-      
-      throw new Error(`Spotify ${resp.status}: ${friendlyMsg || msg}`);
+        const parsed = JSON.parse(msg || "{}");
+        friendly = parsed?.error?.message || msg;
+      } catch {}
+      throw new Error(`Spotify ${resp.status}: ${friendly}`);
     }
-    
+
     return resp.json();
   }
 }
