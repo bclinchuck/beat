@@ -1,6 +1,8 @@
 # Beat - Heart Rate Music Sync
 March to the beat of your own drum.
 
+⚠️ Project Disclaimer: This repository was created for a university course project. Our .env file is intentionally public to allow instructors to grade the assignment without configuration issues. This is not an active or production project, so we are not concerned about the exposure of these temporary development credentials.
+
 A React application that queues music from Spotify based on your desrired workout's heart rate zone (BPM).
 
 ## Features
